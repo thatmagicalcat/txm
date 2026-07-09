@@ -74,7 +74,28 @@ impl<'a> Parser<'a> {
         Ok(lhs)
     }
 
+    fn can_start_atom(&self) -> bool {
+        matches!(
+            self.peek(),
+            Some(Token::LBrace)
+                | Some(Token::LParen)
+                | Some(Token::LBracket)
+                | Some(Token::Number(_))
+                | Some(Token::Ident(_))
+                | Some(Token::Command(_))
+                | Some(Token::Escape(_))
+                | Some(Token::Bang)
+                | Some(Token::Pipe)
+                | Some(Token::Minus)
+                | Some(Token::Plus)
+        )
+    }
+
     fn parse_juxtapose(&mut self) -> Result<Expr, ParseError> {
+        if !self.can_start_atom() {
+            return Ok(Expr::Empty);
+        }
+
         let mut exprs = Vec::new();
         exprs.push(self.parse_scripted()?);
 

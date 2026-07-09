@@ -14,6 +14,7 @@ pub enum Expr {
     BinOp(Box<Expr>, BinOp, Box<Expr>),
     Juxtapose(Vec<Expr>),
     Escape(String),
+    Empty,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -140,8 +140,6 @@ fn build_registry() -> SymbolRegistry {
     r
 }
 
-// BUG: can't write empty braces
-
 fn main() {
     let args = env::args().collect::<Vec<_>>();
     if args.len() < 2 {

@@ -91,6 +91,8 @@ pub fn render(expr: &Expr, reg: &SymbolRegistry, ctx: &mut RenderCtx) -> RenderN
             let nodes: Vec<RenderNode> = exprs.iter().map(|e| render(e, reg, ctx)).collect();
             RenderNode::hstack(&nodes, 0)
         }
+
+        Expr::Empty => RenderNode::new(0, 0, 0),
     }
 }
 
