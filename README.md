@@ -1,6 +1,14 @@
 # TXM
 TXM (Terminal TeX Math) is a math rendering engine with LaTeX support.
 
+## Quick run
+
+```
+nix run github:thatmagicalcat/txm -- "E = mc^2"
+```
+
+Requires [Nix](https://nix.dev/install-nix) with flakes enabled.
+
 # Example:
 ```
 $ txm "f(x) = f(a) + f'(a)(x - a) + \frac{f''(a)}{2!}(x - a)^2 + \frac{f'''(a)}{3!}(x - a)^3+\dots"
