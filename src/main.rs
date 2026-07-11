@@ -1,4 +1,4 @@
-use std::{env, process};
+use std::{env, fs, process};
 
 use unicode_width::UnicodeWidthStr;
 
@@ -31,6 +31,10 @@ fn main() {
         Flag {
             name: "--unboxed",
             desc: "Render without the decorative box border",
+        },
+        Flag {
+            name: "--file",
+            desc: "Render specified file",
         },
     ];
 
@@ -66,6 +70,7 @@ fn main() {
 fn parse_args() -> Result<Cli, String> {
     let args = env::args().skip(1);
     let mut unboxed = false;
+    let mut file = false;
     let mut expression: Option<String> = None;
 
     for arg in args {
@@ -73,7 +78,21 @@ fn parse_args() -> Result<Cli, String> {
             "--help" => return Ok(Cli::Help),
             "--version" => return Ok(Cli::Version),
             "--unboxed" => unboxed = true,
+            "--file" => file = true,
             s if s.starts_with("--") => return Err(format!("unknown flag '{s}'")),
+            s if file => {
+                let s = if s == "-" { "/dev/stdin" } else { s };
+                let file_output = fs::read_to_string(s);
+                if let Ok(file_contents) = file_output {
+                    if expression.replace(file_contents.to_string()).is_some() {
+                        return Err(format!("unexpected extra argument '{s}'"));
+                    }
+                } else if let Err(error) = file_output {
+                    return Err(format!("unable to open file '{s}': {error}"));
+                } else {
+                    return Err(concat!("unexpected error at ", file!(), "@", line!()).into());
+                }
+            }
             s => {
                 if expression.replace(s.to_string()).is_some() {
                     return Err(format!("unexpected extra argument '{s}'"));
