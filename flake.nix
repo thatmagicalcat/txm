@@ -50,21 +50,16 @@
         };
       };
 
-      # -- Native build (pure Nix, works on any system) --
+      # -- Native build (pure Nix, works on the building system) --
       mkTxm = pkgs: pkgs.rustPlatform.buildRustPackage txmArgs;
 
-      # -- Cross-compile for aarch64-linux using nixpkgs cross-compilation --
-      mkTxmAarch64 = (import nixpkgs {
-        localSystem = "x86_64-linux";
-        crossSystem = "aarch64-linux";
-      }).rustPlatform.buildRustPackage txmArgs;
-
-      # -- Cross-compile for macOS/Windows using cargo-zigbuild + rust-overlay --
+      # -- Cross-compile any target using cargo-zigbuild + rust-overlay --
       # rust-overlay provides the Rust toolchain with target stdlibs pre-built,
       # so the derivation is fully sandboxed (no rustup/network needed at build time).
-      mkTxmZigbuild =
-        { rustTarget # e.g. "x86_64-apple-darwin"
-        , nixPlatform  # Nix system string, e.g. "x86_64-darwin"
+      # Uses musl targets for Linux → fully static binaries, portable across distros.
+      mkTxmCross =
+        { rustTarget # e.g. "x86_64-unknown-linux-musl"
+        , nixPlatform  # Nix system string, e.g. "x86_64-linux"
         }:
         let
           pkgsOverlay = pkgsFor "x86_64-linux";
@@ -78,12 +73,16 @@
           # rustPlatform that uses the overlay's cargo/rustc (which has target stdlibs)
           # but with auditable disabled — Zig's linker doesn't support the
           # `--undefined` flag that nixpkgs' auditable feature injects.
-          zigPlatform = pkgsPlain.makeRustPlatform {
+          crossPlatform = pkgsPlain.makeRustPlatform {
             cargo = rustWithTargets;
             rustc = rustWithTargets;
           };
+
+          # Detect Windows targets (produce .exe binaries)
+          isWindows = pkgsPlain.lib.hasSuffix "windows-gnu" rustTarget;
+          binName = if isWindows then "txm.exe" else "txm";
         in
-        zigPlatform.buildRustPackage (txmArgs // {
+        crossPlatform.buildRustPackage (txmArgs // {
           auditable = false;
 
           nativeBuildInputs = (txmArgs.nativeBuildInputs or [ ]) ++ [
@@ -107,11 +106,7 @@
           installPhase = ''
             runHook preInstall
             mkdir -p $out/bin
-            if [ -f "target/${rustTarget}/release/txm.exe" ]; then
-              cp "target/${rustTarget}/release/txm.exe" "$out/bin/txm.exe"
-            else
-              cp "target/${rustTarget}/release/txm" "$out/bin/txm"
-            fi
+            cp "target/${rustTarget}/release/${binName}" "$out/bin/${binName}"
             runHook postInstall
           '';
 
@@ -127,6 +122,8 @@
       })
       # On x86_64-linux, also provide cross-compiled packages for all targets.
       # This lets a single Linux CI runner produce every platform binary.
+      #
+      # Linux targets use musl (fully static, portable across distros).
       //
         {
           x86_64-linux = let
@@ -134,22 +131,26 @@
           in {
             default = mkTxm pkgs;
 
-            # Native linux builds
-            x86_64-linux = mkTxm pkgs;
-
-            # Nixpkgs cross-compilation (pure Nix, proven working)
-            aarch64-linux = mkTxmAarch64;
+            # Static Linux builds (musl, fully static, work on any Linux)
+            x86_64-linux = mkTxmCross {
+              rustTarget = "x86_64-unknown-linux-musl";
+              nixPlatform = "x86_64-linux";
+            };
+            aarch64-linux = mkTxmCross {
+              rustTarget = "aarch64-unknown-linux-musl";
+              nixPlatform = "aarch64-linux";
+            };
 
             # Cross-OS via cargo-zigbuild + rust-overlay (pure Nix, no rustup needed)
-            x86_64-darwin = mkTxmZigbuild {
+            x86_64-darwin = mkTxmCross {
               rustTarget = "x86_64-apple-darwin";
               nixPlatform = "x86_64-darwin";
             };
-            aarch64-darwin = mkTxmZigbuild {
+            aarch64-darwin = mkTxmCross {
               rustTarget = "aarch64-apple-darwin";
               nixPlatform = "aarch64-darwin";
             };
-            x86_64-windows = mkTxmZigbuild {
+            x86_64-windows = mkTxmCross {
               rustTarget = "x86_64-pc-windows-gnu";
               nixPlatform = "x86_64-windows";
             };

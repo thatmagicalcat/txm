@@ -208,8 +208,9 @@ mod tests {
     fn sqrt_optional_index_keeps_radicand() {
         let mut registry = SymbolRegistry::new();
         registry.register("sqrt", SqrtGlyph);
-        let tokens = tokenize(r"\sqrt[3]{8}").unwrap();
-        let expr = Parser::new(&tokens, &registry).parse_expr().unwrap();
+        let input = r"\sqrt[3]{8}";
+        let tokens = tokenize(input).unwrap();
+        let expr = Parser::new(input, &tokens, &registry).parse_expr().unwrap();
         let node = render(&expr, &registry, &mut RenderCtx::default()).unwrap();
         let rows: Vec<String> = node
             .data

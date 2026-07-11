@@ -1,5 +1,7 @@
-# TXM
-TXM (Terminal TeX Math) is a math rendering engine with LaTeX support.
+<div align="center">
+  <h1>TXM</h1>
+  <p>TXM (Terminal TeX Math) is a math rendering engine with LaTeX support.</p>
+</div>
 
 # Screenshots:
 ![s1](./screenshots/1.png)

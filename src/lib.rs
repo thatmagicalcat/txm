@@ -29,7 +29,7 @@ const COMPACT_SIMPLE_FRACTIONAL_EXPONENTS: bool = false;
 pub fn render(input: &str) -> Result<String, ParseError> {
     let tokens = tokenize(input)?;
     let reg = registry();
-    let mut parser = Parser::new(&tokens, reg);
+    let mut parser = Parser::new(input, &tokens, reg);
     let expr = parser.parse_expr()?;
     let mut ctx = RenderCtx::default();
     let layout = render_expr(&expr, reg, &mut ctx)?;
