@@ -165,25 +165,25 @@ fn build_registry() -> SymbolRegistry {
     ] {
         r.register(cmd, UnicodeGlyph(ch));
     }
-    
+
     for (cmd, ch) in [
-    ("aleph", 'ℵ'),
-    ("hbar", 'ℏ'),
-    ("ell", 'ℓ'),
-    ("wp", '℘'),
-    ("Re", 'ℜ'),
-    ("Im", 'ℑ'),
-    ("longrightarrow", '⟶'),
-    ("longleftarrow", '⟵'),
-    ("hookrightarrow", '↪'),
-    ("hookleftarrow", '↩'),
-    ("nrightarrow", '↛'),
-    ("nleftarrow", '↚'),
-    ("Longrightarrow", '⟹'),
-    ("Longleftarrow", '⟸'),
+        ("aleph", 'ℵ'),
+        ("hbar", 'ℏ'),
+        ("ell", 'ℓ'),
+        ("wp", '℘'),
+        ("Re", 'ℜ'),
+        ("Im", 'ℑ'),
+        ("longrightarrow", '⟶'),
+        ("longleftarrow", '⟵'),
+        ("hookrightarrow", '↪'),
+        ("hookleftarrow", '↩'),
+        ("nrightarrow", '↛'),
+        ("nleftarrow", '↚'),
+        ("Longrightarrow", '⟹'),
+        ("Longleftarrow", '⟸'),
     ] {
-    r.register(cmd, UnicodeGlyph(ch));
-}
+        r.register(cmd, UnicodeGlyph(ch));
+    }
 
     r.register("|", AbsGlyph);
 
