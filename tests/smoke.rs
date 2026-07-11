@@ -114,6 +114,30 @@ fn accent_stacks_mark_above_argument() {
 }
 
 #[test]
+fn latex_style_parentheses_render_as_paired_delimiters() {
+    let rendered = txm::render(r"\left( x \right)").unwrap();
+
+    assert!(rendered.contains('('));
+    assert!(rendered.contains(')'));
+    assert!(rendered.contains('x'));
+}
+
+#[test]
+fn latex_style_brackets_render_fraction_inside() {
+    let rendered = txm::render(r"\left[ \frac{1}{2} \right]").unwrap();
+
+    assert!(rendered.contains('[') || rendered.contains('⎡'));
+    assert!(rendered.contains(']') || rendered.contains('⎤'));
+    assert!(rendered.contains('1'));
+    assert!(rendered.contains('2'));
+}
+
+#[test]
+fn unmatched_latex_delimiters_fail_gracefully() {
+    assert!(txm::render(r"\left( x ").is_err());
+}
+
+#[test]
 fn inline_punctuation_renders_literally() {
     assert_eq!(txm::render(r"(3,0)").unwrap(), "(3,0)\n");
 }

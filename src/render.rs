@@ -23,6 +23,11 @@ pub fn render(
             Ok(RenderNode::stretchy_delim(&inner, '[', ']', false))
         }
 
+        Expr::Delimiter { left, right, inner } => {
+            let inner = render(inner, reg, ctx)?;
+            Ok(RenderNode::stretchy_delim(&inner, *left, *right, false))
+        }
+
         Expr::Neg(inner) => {
             let inner = render(inner, reg, ctx)?;
             let mut result = RenderNode::new(inner.width + 1, inner.height, inner.baseline);

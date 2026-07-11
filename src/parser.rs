@@ -305,6 +305,12 @@ impl<'a> Parser<'a> {
                 self.advance();
                 if name == "begin" {
                     self.parse_begin()
+                } else if name == "left" {
+                    self.parse_left_delimited()
+                } else if name == "right" {
+                    Err(ParseError(
+                        "unexpected \\right without matching \\left".into(),
+                    ))
                 } else {
                     self.parse_command(&name)
                 }
@@ -382,6 +388,101 @@ impl<'a> Parser<'a> {
                 self.pos,
                 other.cloned()
             ))),
+        }
+    }
+
+    fn parse_left_delimited(&mut self) -> Result<Expr, ParseError> {
+        let left = self.read_delimiter("left")?;
+        let inner_start = self.pos;
+        let mut depth = 0usize;
+        let mut match_idx = None;
+
+        for (idx, (token, _)) in self.tokens[inner_start..].iter().enumerate() {
+            match token {
+                Token::Command(name) if *name == "left" => depth += 1,
+                Token::Command(name) if *name == "right" => {
+                    if depth == 0 {
+                        match_idx = Some(inner_start + idx);
+                        break;
+                    }
+                    depth -= 1;
+                }
+                _ => {}
+            }
+        }
+
+        let Some(match_idx) = match_idx else {
+            return Err(ParseError("unclosed \\left ... \\right pair".into()));
+        };
+
+        let Some((Token::Command(name), _)) = self.tokens.get(match_idx) else {
+            return Err(ParseError(
+                "internal parser error: missing \\right command".into(),
+            ));
+        };
+        if *name != "right" {
+            return Err(ParseError(
+                "internal parser error: mismatched delimiter scan".into(),
+            ));
+        }
+
+        let Some((right_token, _)) = self.tokens.get(match_idx + 1) else {
+            return Err(ParseError("expected a delimiter after \\right".into()));
+        };
+        let right = self.delimiter_char(right_token, "right")?;
+        let expected_right = match left {
+            '(' => ')',
+            '[' => ']',
+            '{' => '}',
+            '|' => '|',
+            _ => unreachable!("unsupported left delimiter"),
+        };
+        if right != expected_right {
+            return Err(ParseError(format!(
+                "mismatched delimiters: \\left{left} and \\right{right}"
+            )));
+        }
+
+        let inner = self.parse_tokens(&self.tokens[inner_start..match_idx])?;
+        self.pos = match_idx + 2;
+        Ok(Expr::Delimiter {
+            left,
+            right,
+            inner: Box::new(inner),
+        })
+    }
+
+    fn read_delimiter(&mut self, side: &str) -> Result<char, ParseError> {
+        let token = self.peek().cloned();
+        let delim = match token.as_ref() {
+            Some(Token::LParen) | Some(Token::Escape("(")) => '(',
+            Some(Token::LBracket) | Some(Token::Escape("[")) => '[',
+            Some(Token::LBrace) | Some(Token::Escape("{")) => '{',
+            Some(Token::Pipe) | Some(Token::Escape("|")) => '|',
+            Some(Token::RParen) | Some(Token::Escape(")")) => ')',
+            Some(Token::RBracket) | Some(Token::Escape("]")) => ']',
+            Some(Token::RBrace) | Some(Token::Escape("}")) => '}',
+            _ => {
+                return Err(ParseError(format!("expected a delimiter after \\{side}")));
+            }
+        };
+
+        if token.is_some() {
+            self.advance();
+        }
+        Ok(delim)
+    }
+
+    fn delimiter_char(&self, token: &Token<'_>, side: &str) -> Result<char, ParseError> {
+        match token {
+            Token::LParen | Token::Escape("(") => Ok('('),
+            Token::LBracket | Token::Escape("[") => Ok('['),
+            Token::LBrace | Token::Escape("{") => Ok('{'),
+            Token::RParen | Token::Escape(")") => Ok(')'),
+            Token::RBracket | Token::Escape("]") => Ok(']'),
+            Token::RBrace | Token::Escape("}") => Ok('}'),
+            Token::Pipe | Token::Escape("|") => Ok('|'),
+            _ => Err(ParseError(format!("expected a delimiter after \\{side}"))),
         }
     }
 
