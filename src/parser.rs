@@ -31,13 +31,18 @@ impl<'a> Parser<'a> {
         t
     }
 
-    fn expect(&mut self, tok: Token) {
-        let actual = self.advance();
-        assert_eq!(
-            actual, tok,
-            "Parse error: expected {:?}, got {:?}",
-            tok, actual
-        );
+    fn expect(&mut self, tok: Token) -> Result<(), ParseError> {
+        match self.peek() {
+            Some(actual) if *actual == tok => {
+                self.pos += 1;
+                Ok(())
+            }
+            Some(actual) => Err(ParseError(format!(
+                "expected {:?}, got {:?}",
+                tok, actual
+            ))),
+            None => Err(ParseError(format!("expected {:?}, got end of input", tok))),
+        }
     }
 
     pub fn parse_expr(&mut self) -> Result<Expr, ParseError> {
@@ -163,7 +168,7 @@ impl<'a> Parser<'a> {
 
             self.advance(); // eat {
             let body = self.parse_expr()?;
-            self.expect(Token::RBrace);
+            self.expect(Token::RBrace)?;
             args.push(body);
 
             Expr::Command { name, args }
@@ -198,19 +203,19 @@ impl<'a> Parser<'a> {
             Some(Token::LBrace) => {
                 self.advance();
                 let inner = self.parse_expr()?;
-                self.expect(Token::RBrace);
+                self.expect(Token::RBrace)?;
                 Ok(Expr::Group(Box::new(inner)))
             }
             Some(Token::LParen) => {
                 self.advance();
                 let inner = self.parse_expr()?;
-                self.expect(Token::RParen);
+                self.expect(Token::RParen)?;
                 Ok(Expr::Parens(Box::new(inner)))
             }
             Some(Token::LBracket) => {
                 self.advance();
                 let inner = self.parse_expr()?;
-                self.expect(Token::RBracket);
+                self.expect(Token::RBracket)?;
                 Ok(Expr::Brackets(Box::new(inner)))
             }
             Some(Token::Command(name)) => {
@@ -230,7 +235,7 @@ impl<'a> Parser<'a> {
             Some(Token::Pipe) => {
                 self.advance();
                 let inner = self.parse_expr()?;
-                self.expect(Token::Pipe);
+                self.expect(Token::Pipe)?;
                 Ok(Expr::Command {
                     name: "|".into(),
                     args: vec![inner],
@@ -271,15 +276,15 @@ impl<'a> Parser<'a> {
         if has_opt && self.peek() == Some(&Token::LBracket) {
             self.advance();
             let opt = self.parse_expr()?;
-            self.expect(Token::RBracket);
+            self.expect(Token::RBracket)?;
             args.push(opt);
         }
 
         if !has_limits {
             for _ in 0..n_req {
-                self.expect(Token::LBrace);
+                self.expect(Token::LBrace)?;
                 let arg = self.parse_expr()?;
-                self.expect(Token::RBrace);
+                self.expect(Token::RBrace)?;
                 args.push(arg);
             }
         }
@@ -291,7 +296,7 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_begin(&mut self) -> Result<Expr, ParseError> {
-        self.expect(Token::LBrace);
+        self.expect(Token::LBrace)?;
         let env_name = match self.peek() {
             Some(Token::Ident(name)) => {
                 let name = name.clone();
@@ -304,7 +309,7 @@ impl<'a> Parser<'a> {
                 ));
             }
         };
-        self.expect(Token::RBrace);
+        self.expect(Token::RBrace)?;
 
         let body_start = self.pos;
         let mut depth = 0u32;
@@ -332,7 +337,7 @@ impl<'a> Parser<'a> {
         let rows = self.parse_matrix_body(body)?;
 
         self.advance();
-        self.expect(Token::LBrace);
+        self.expect(Token::LBrace)?;
         let end_name = match self.peek() {
             Some(Token::Ident(name)) => {
                 let name = name.clone();
@@ -347,7 +352,7 @@ impl<'a> Parser<'a> {
                 env_name, end_name
             )));
         }
-        self.expect(Token::RBrace);
+        self.expect(Token::RBrace)?;
 
         Ok(Expr::Matrix {
             name: env_name,

@@ -1,7 +1,7 @@
 use std::env;
 
 use glyph::*;
-use parser::Parser;
+use parser::{ParseError, Parser};
 use render::render;
 use token::tokenize;
 
@@ -158,7 +158,13 @@ fn main() {
 fn render_boxed(input: &str, reg: &SymbolRegistry) {
     let tokens = tokenize(input);
     let mut parser = Parser::new(&tokens, reg);
-    let expr = parser.parse_expr().unwrap();
+    let expr = match parser.parse_expr() {
+        Ok(expr) => expr,
+        Err(ParseError(msg)) => {
+            eprintln!("txm: parse error: {msg}");
+            std::process::exit(1);
+        }
+    };
     // dbg!(&expr);
     let mut ctx = RenderCtx::default();
     let layout = render(&expr, reg, &mut ctx);
