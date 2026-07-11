@@ -216,6 +216,92 @@ impl Glyph for IntegralGlyph {
     }
 }
 
+/// A font-alphabet command (`\mathbf`, `\mathbb`, `\mathrm`, ...): takes one
+/// argument and remaps each character of it through `.0`. Characters with no
+/// variant in the target alphabet (spaces, operators, digits in italic) pass
+/// through unchanged.
+#[derive(Debug)]
+pub struct AlphabetGlyph(pub fn(char) -> char);
+
+impl Glyph for AlphabetGlyph {
+    fn required_args(&self) -> usize {
+        1
+    }
+
+    fn render(
+        &self,
+        args: &[RenderNode],
+        _opts: &[RenderNode],
+        _ctx: &mut RenderCtx,
+    ) -> RenderNode {
+        let src = &args[0];
+        RenderNode {
+            width: src.width,
+            height: src.height,
+            baseline: src.baseline,
+            data: src.data.iter().map(|&c| (self.0)(c)).collect(),
+        }
+    }
+}
+
+fn shift(c: char, base: u32, off: u32) -> char {
+    char::from_u32(base + off).unwrap_or(c)
+}
+
+/// Mathematical bold (𝐀-𝐳, 𝟎-𝟗).
+pub fn to_bold(c: char) -> char {
+    match c {
+        'A'..='Z' => shift(c, 0x1D400, c as u32 - 'A' as u32),
+        'a'..='z' => shift(c, 0x1D41A, c as u32 - 'a' as u32),
+        '0'..='9' => shift(c, 0x1D7CE, c as u32 - '0' as u32),
+        _ => c,
+    }
+}
+
+/// Blackboard bold / double-struck (ℝ, ℍ, ℂ, ...).
+pub fn to_bb(c: char) -> char {
+    match c {
+        // Letters that live in the Letterlike Symbols block, not the contiguous run.
+        'C' => 'ℂ',
+        'H' => 'ℍ',
+        'N' => 'ℕ',
+        'P' => 'ℙ',
+        'Q' => 'ℚ',
+        'R' => 'ℝ',
+        'Z' => 'ℤ',
+        'A'..='Z' => shift(c, 0x1D538, c as u32 - 'A' as u32),
+        'a'..='z' => shift(c, 0x1D552, c as u32 - 'a' as u32),
+        '0'..='9' => shift(c, 0x1D7D8, c as u32 - '0' as u32),
+        _ => c,
+    }
+}
+
+/// Upright roman (`\mathrm`, `\mathup`): terminal glyphs are already upright,
+/// so this is the identity and simply lets the argument render normally.
+pub fn to_upright(c: char) -> char {
+    c
+}
+
+/// Mathematical italic (𝐴-𝑧).
+pub fn to_italic(c: char) -> char {
+    match c {
+        'h' => 'ℎ', // U+1D455 is reserved; Planck constant stands in.
+        'A'..='Z' => shift(c, 0x1D434, c as u32 - 'A' as u32),
+        'a'..='z' => shift(c, 0x1D44E, c as u32 - 'a' as u32),
+        _ => c,
+    }
+}
+
+/// Sans-serif (𝖠-𝗓, 𝟢-𝟫).
+pub fn to_sans(c: char) -> char {
+    match c {
+        'A'..='Z' => shift(c, 0x1D5A0, c as u32 - 'A' as u32),
+        'a'..='z' => shift(c, 0x1D5BA, c as u32 - 'a' as u32),
+        '0'..='9' => shift(c, 0x1D7E2, c as u32 - '0' as u32),
+        _ => c,
+    }
+}
+
 #[derive(Debug)]
 pub struct AbsGlyph;
 
@@ -231,5 +317,29 @@ impl Glyph for AbsGlyph {
         _ctx: &mut RenderCtx,
     ) -> RenderNode {
         RenderNode::abs(&args[0])
+    }
+}
+
+/// An accent command (`\hat`, `\tilde`, `\bar`, `\vec`, `\overline`, ...):
+/// takes one argument and draws `mark` above it. `stretch` spans the mark
+/// across the whole width (wide accents); otherwise it is centred.
+#[derive(Debug)]
+pub struct AccentGlyph {
+    pub mark: char,
+    pub stretch: bool,
+}
+
+impl Glyph for AccentGlyph {
+    fn required_args(&self) -> usize {
+        1
+    }
+
+    fn render(
+        &self,
+        args: &[RenderNode],
+        _opts: &[RenderNode],
+        _ctx: &mut RenderCtx,
+    ) -> RenderNode {
+        RenderNode::accent(&args[0], self.mark, self.stretch)
     }
 }

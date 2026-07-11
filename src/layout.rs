@@ -569,6 +569,33 @@ impl RenderNode {
             true,
         ))
     }
+
+    /// Place an accent above `inner`: a single mark centred over the argument
+    /// (`\hat`, `\tilde`, `\vec`, ...) or, when `stretch` is set, a mark run
+    /// spanning its full width (`\overline`, `\widehat`, ...). The accent adds
+    /// one row on top and the baseline follows the argument down.
+    pub fn accent(inner: &Self, mark: char, stretch: bool) -> Self {
+        let width = inner.width.max(1);
+        let height = inner.height + 1;
+        let mut data = vec![' '; width * height];
+
+        if stretch {
+            for cell in data.iter_mut().take(width) {
+                *cell = mark;
+            }
+        } else {
+            data[width / 2] = mark;
+        }
+
+        inner.blit_into(&mut data, width, 0, 1);
+
+        Self {
+            width,
+            height,
+            baseline: inner.baseline + 1,
+            data,
+        }
+    }
 }
 
 impl fmt::Display for RenderNode {

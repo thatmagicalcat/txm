@@ -1,6 +1,7 @@
 use crate::glyph::{
-    AbsGlyph, BinomGlyph, FracGlyph, IntegralGlyph, LimitGlyph, RenderCtx, SqrtGlyph,
-    SymbolRegistry, TextGlyph, UnicodeGlyph,
+    AbsGlyph, AccentGlyph, AlphabetGlyph, BinomGlyph, FracGlyph, IntegralGlyph, LimitGlyph,
+    RenderCtx, SqrtGlyph, SymbolRegistry, TextGlyph, UnicodeGlyph, to_bb, to_bold, to_italic,
+    to_sans, to_upright,
 };
 use crate::parser::Parser;
 use crate::render::render as render_expr;
@@ -166,6 +167,47 @@ fn build_registry() -> SymbolRegistry {
     }
 
     r.register("|", AbsGlyph);
+
+    for (cmd, map) in [
+        ("mathbf", to_bold as fn(char) -> char),
+        ("mathbb", to_bb),
+        ("mathrm", to_upright),
+        ("mathit", to_italic),
+        ("mathsf", to_sans),
+    ] {
+        r.register(cmd, AlphabetGlyph(map));
+    }
+
+    for (cmd, mark) in [
+        ("hat", '^'),
+        ("tilde", '~'),
+        ("bar", '‾'),
+        ("vec", '→'),
+        ("dot", '˙'),
+        ("ddot", '¨'),
+        ("acute", '´'),
+        ("grave", '`'),
+        ("check", 'ˇ'),
+        ("breve", '˘'),
+    ] {
+        r.register(
+            cmd,
+            AccentGlyph {
+                mark,
+                stretch: false,
+            },
+        );
+    }
+
+    for (cmd, mark) in [("overline", '─'), ("widehat", '^'), ("widetilde", '~')] {
+        r.register(
+            cmd,
+            AccentGlyph {
+                mark,
+                stretch: true,
+            },
+        );
+    }
 
     r
 }

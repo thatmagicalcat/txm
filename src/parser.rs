@@ -91,6 +91,13 @@ impl<'a> Parser<'a> {
                 | Some(Token::Minus)
                 | Some(Token::Plus)
                 | Some(Token::Ampersand)
+                | Some(Token::Slash)
+                | Some(Token::Comma)
+                | Some(Token::Dot)
+                | Some(Token::Colon)
+                | Some(Token::Semicolon)
+                | Some(Token::Less)
+                | Some(Token::Greater)
         )
     }
 
@@ -110,7 +117,14 @@ impl<'a> Parser<'a> {
         | Some(Token::Command(_))
         | Some(Token::Escape(_))
         | Some(Token::Bang)
-        | Some(Token::Ampersand) = self.peek()
+        | Some(Token::Ampersand)
+        | Some(Token::Slash)
+        | Some(Token::Comma)
+        | Some(Token::Dot)
+        | Some(Token::Colon)
+        | Some(Token::Semicolon)
+        | Some(Token::Less)
+        | Some(Token::Greater) = self.peek()
         {
             exprs.push(self.parse_scripted()?);
         }
@@ -251,8 +265,13 @@ impl<'a> Parser<'a> {
             }
             Some(Token::Minus) => {
                 self.advance();
-                let inner = self.parse_atom()?;
-                Ok(Expr::Neg(Box::new(inner)))
+                // Unary minus if an operand follows (`-x`), otherwise a bare
+                // symbol (`\pm`-style groups, `x^{-}`).
+                if self.can_start_atom() {
+                    Ok(Expr::Neg(Box::new(self.parse_atom()?)))
+                } else {
+                    Ok(Expr::Ident("-".into()))
+                }
             }
             Some(Token::Bang) => {
                 self.advance();
@@ -264,7 +283,38 @@ impl<'a> Parser<'a> {
             }
             Some(Token::Plus) => {
                 self.advance();
-                Ok(self.parse_atom()?)
+                Ok(Expr::Ident("+".into()))
+            }
+            // Punctuation and relations that carry no special layout: render the
+            // literal symbol. Without these the tokens are dropped or collide
+            // with a closing-delimiter expectation (e.g. `(3,0)`, `x^{a/b}`).
+            Some(Token::Slash) => {
+                self.advance();
+                Ok(Expr::Ident("/".into()))
+            }
+            Some(Token::Comma) => {
+                self.advance();
+                Ok(Expr::Ident(",".into()))
+            }
+            Some(Token::Dot) => {
+                self.advance();
+                Ok(Expr::Ident(".".into()))
+            }
+            Some(Token::Colon) => {
+                self.advance();
+                Ok(Expr::Ident(":".into()))
+            }
+            Some(Token::Semicolon) => {
+                self.advance();
+                Ok(Expr::Ident(";".into()))
+            }
+            Some(Token::Less) => {
+                self.advance();
+                Ok(Expr::Ident("<".into()))
+            }
+            Some(Token::Greater) => {
+                self.advance();
+                Ok(Expr::Ident(">".into()))
             }
             other => Err(ParseError(format!(
                 "Unexpected token at position {}: {:?}",
@@ -291,10 +341,17 @@ impl<'a> Parser<'a> {
 
         if !has_limits {
             for _ in 0..n_req {
-                self.expect(Token::LBrace)?;
-                let arg = self.parse_expr()?;
-                self.expect(Token::RBrace)?;
-                args.push(arg);
+                // A macro argument is either a braced group `{...}` or, following
+                // LaTeX, the single following atom (so `\mathbf x` and `\frac12`
+                // work, not only `\mathbf{x}` and `\frac{1}{2}`).
+                if self.peek() == Some(&Token::LBrace) {
+                    self.advance();
+                    let arg = self.parse_expr()?;
+                    self.expect(Token::RBrace)?;
+                    args.push(arg);
+                } else {
+                    args.push(self.parse_atom()?);
+                }
             }
         }
 

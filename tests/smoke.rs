@@ -92,3 +92,28 @@ fn cli_reports_render_errors_without_panicking() {
         "error: unknown matrix environment: unknown\n"
     );
 }
+
+#[test]
+fn mathbf_maps_to_bold_alphabet() {
+    assert_eq!(txm::render(r"\mathbf{x}").unwrap(), "𝐱\n");
+}
+
+#[test]
+fn mathbb_uses_letterlike_specials() {
+    assert_eq!(txm::render(r"\mathbb{R}").unwrap(), "ℝ\n");
+}
+
+#[test]
+fn single_token_argument_needs_no_braces() {
+    assert_eq!(txm::render(r"\mathbf n").unwrap(), "𝐧\n");
+}
+
+#[test]
+fn accent_stacks_mark_above_argument() {
+    assert_eq!(txm::render(r"\hat{x}").unwrap(), "^\nx\n");
+}
+
+#[test]
+fn inline_punctuation_renders_literally() {
+    assert_eq!(txm::render(r"(3,0)").unwrap(), "(3,0)\n");
+}
