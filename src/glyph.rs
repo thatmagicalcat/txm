@@ -1,7 +1,7 @@
+use crate::ParseError;
 use crate::ast::Expr;
 use crate::buffer::RenderBuffer;
 use crate::layout::RenderNode;
-use crate::{ParseError};
 use std::collections::HashMap;
 use std::fmt::Debug;
 
