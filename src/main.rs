@@ -1,5 +1,4 @@
 use std::{env, fs, process};
-
 use unicode_width::UnicodeWidthStr;
 
 struct Flag {
@@ -48,7 +47,10 @@ fn main() {
                 if config.unboxed {
                     print!("{rendered}");
                 } else {
-                    print!("{}", boxed(&rendered));
+                    cfg_select! {
+                        feature = "fancy" => println!("{rendered}"),
+                        _  => boxed(&rendered, &mut std::io::stdout()),
+                    }
                 }
             }
             Err(e) => {
@@ -137,19 +139,25 @@ EXAMPLES:
     )
 }
 
-fn boxed(rendered: &str) -> String {
+#[allow(unused)]
+fn boxed(rendered: &str, f: &mut impl std::io::Write) {
     let lines: Vec<&str> = rendered.lines().collect();
     let width = lines
         .iter()
-        .map(|line| UnicodeWidthStr::width(*line))
+        .map(|line| line.width()) // Use the extension trait method directly
         .max()
         .unwrap_or(0);
+
     let border = "─".repeat(width + 2);
-    let mut out = format!("┌{border}┐\n│ {} │\n", " ".repeat(width));
+
+    let _ = writeln!(f, "┌{border}┐");
+    let _ = writeln!(f, "│ {:width$} │", "", width = width);
+
     for line in lines {
-        let padding = width - UnicodeWidthStr::width(line);
-        out.push_str(&format!("│ {line}{} │\n", " ".repeat(padding)));
+        let padding = width - line.width();
+        let _ = writeln!(f, "│ {line}{:padding$} │", "", padding = padding);
     }
-    out.push_str(&format!("│ {} │\n└{border}┘\n", " ".repeat(width)));
-    out
+
+    let _ = writeln!(f, "│ {:width$} │", "", width = width);
+    let _ = writeln!(f, "└{border}┘");
 }

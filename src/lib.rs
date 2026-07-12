@@ -1,8 +1,4 @@
-use crate::glyph::{
-    AbsGlyph, AccentGlyph, AlphabetGlyph, BinomGlyph, FracGlyph, IntegralGlyph, LimitGlyph,
-    RenderCtx, SqrtGlyph, SummationGlyph, SymbolRegistry, TextGlyph, UnicodeGlyph, to_bb, to_bold,
-    to_italic, to_sans, to_upright,
-};
+use crate::glyph::*;
 use crate::parser::Parser;
 use crate::render::render as render_expr;
 use crate::token::tokenize;
@@ -10,13 +6,13 @@ use crate::token::tokenize;
 use std::sync::OnceLock;
 
 mod ast;
+mod buffer;
 mod error;
 mod glyph;
 mod layout;
 mod parser;
 mod render;
 mod token;
-mod buffer;
 
 #[cfg(feature = "fancy")]
 mod style;
@@ -41,7 +37,26 @@ pub fn render(input: &str) -> Result<String, ParseError> {
     let mut ctx = RenderCtx::default();
     let layout = render_expr(&expr, reg, &mut ctx)?;
 
-    Ok(layout.to_string())
+    #[cfg(not(feature = "fancy"))]
+    return Ok(layout.to_string());
+
+    #[cfg(feature = "fancy")]
+    Ok({
+        let mut s = String::new();
+        layout.write_ansi_boxed(&mut s).unwrap();
+        s
+    })
+
+    // #[allow(clippy::redundant_closure_call)]
+    // Ok(cfg_select! {
+    //     feature = "fancy" => || {
+    //         let mut s = String::new();
+    //         layout.write_ansi_boxed(&mut s)?;
+    //         s
+    //     },
+    //
+    //     _ => || layout.to_string()
+    // }())
 }
 
 fn registry() -> &'static SymbolRegistry {
@@ -111,6 +126,9 @@ fn build_registry() -> SymbolRegistry {
     r.register("int", IntegralGlyph);
     r.register("sum", SummationGlyph);
 
+    #[cfg(feature = "fancy")]
+    r.register("color", TextColorGlyph);
+
     for (cmd, ch) in [
         ("infty", '∞'),
         ("partial", '∂'),
@@ -174,6 +192,7 @@ fn build_registry() -> SymbolRegistry {
     }
 
     r.register("abs", AbsGlyph);
+    r.register("|", AbsGlyph);
 
     for (cmd, map) in [
         ("mathbf", to_bold as fn(char) -> char),

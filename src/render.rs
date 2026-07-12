@@ -3,18 +3,34 @@ use crate::error::ParseError;
 use crate::glyph::{RenderCtx, SymbolRegistry};
 use crate::layout::RenderNode;
 
-#[cfg(feature = "fancy")]
-use crate::style::StyleMap;
-
 pub fn render(
     expr: &Expr,
     reg: &SymbolRegistry,
     ctx: &mut RenderCtx,
 ) -> Result<RenderNode, ParseError> {
     match expr {
-        Expr::Ident(s) | Expr::Number(s) => Ok(RenderNode::from_str(s)),
+        Expr::Ident(s) | Expr::Number(s) => {
+            #[allow(unused_mut)]
+            let mut node = RenderNode::from_str(s);
 
-        Expr::Group(inner) => render(inner, reg, ctx),
+            #[cfg(feature = "fancy")]
+            node.apply_style(ctx.current_style);
+
+            Ok(node)
+        }
+
+        Expr::Group(inner) => {
+            #[cfg(feature = "fancy")]
+            let prev_style = ctx.current_style;
+            let res = render(inner, reg, ctx);
+
+            #[cfg(feature = "fancy")]
+            {
+                ctx.current_style = prev_style;
+            }
+
+            res
+        }
 
         Expr::Parens(inner) => {
             let inner = render(inner, reg, ctx)?;
@@ -36,24 +52,24 @@ pub fn render(
 
         Expr::Command { name, opts, args } => {
             if let Some(glyph) = reg.get(name) {
-                let (rendered_opts, rendered_args) = {
-                    ctx.depth += 1;
-                    let rendered = (|| {
-                        Ok((
-                            opts.iter()
-                                .map(|a| render(a, reg, ctx))
-                                .collect::<Result<Vec<_>, _>>()?,
-                            args.iter()
-                                .map(|a| render(a, reg, ctx))
-                                .collect::<Result<Vec<_>, _>>()?,
-                        ))
-                    })();
-                    ctx.depth -= 1;
-                    rendered?
-                };
-                Ok(glyph.render(&rendered_args, &rendered_opts, ctx))
+                let mut eval =
+                    |expr: &Expr, eval_ctx: &mut RenderCtx| -> Result<RenderNode, ParseError> {
+                        render(expr, reg, eval_ctx)
+                    };
+
+                ctx.depth += 1;
+                let rendered_node = glyph.render_macro(args, opts, ctx, &mut eval);
+                ctx.depth -= 1;
+
+                rendered_node
             } else {
-                Ok(RenderNode::from_str(name))
+                #[allow(unused_mut)]
+                let mut node = RenderNode::from_str(name);
+
+                #[cfg(feature = "fancy")]
+                node.apply_style(ctx.current_style);
+
+                Ok(node)
             }
         }
 
@@ -132,14 +148,22 @@ pub fn render(
             Ok(RenderNode::infix(&lhs, op_char, &rhs))
         }
 
-        Expr::Escape(s) => Ok(match s.as_str() {
-            " " => RenderNode::new(4, 1, 0),
-            "," => RenderNode::new(1, 1, 0),
-            ":" => RenderNode::new(2, 1, 0),
-            ";" => RenderNode::new(3, 1, 0),
-            "!" => RenderNode::new(0, 1, 0),
-            _ => RenderNode::from_str(s),
-        }),
+        Expr::Escape(s) => {
+            #[allow(unused_mut)]
+            let mut node = match s.as_str() {
+                " " => RenderNode::new(4, 1, 0),
+                "," => RenderNode::new(1, 1, 0),
+                ":" => RenderNode::new(2, 1, 0),
+                ";" => RenderNode::new(3, 1, 0),
+                "!" => RenderNode::new(0, 1, 0),
+                _ => RenderNode::from_str(s),
+            };
+
+            #[cfg(feature = "fancy")]
+            node.apply_style(ctx.current_style);
+
+            Ok(node)
+        }
 
         Expr::Juxtapose(exprs) => {
             let nodes: Vec<RenderNode> = exprs
@@ -217,7 +241,7 @@ mod tests {
         let node = render(&expr, &registry, &mut RenderCtx::default()).unwrap();
         let rows: Vec<String> = node
             .buffer
-            .data
+            .data_ref()
             .chunks(node.width)
             .map(|row| row.iter().collect())
             .collect();

@@ -388,7 +388,8 @@ impl<'a> Parser<'a> {
     fn parse_command(&mut self, name: &str) -> Result<Expr, ParseError> {
         let glyph = self.registry.get(name);
         let has_opt = glyph.is_some_and(|g| g.has_optional());
-        let n_req = glyph.map_or(0, |g| g.required_args());
+        #[allow(unused_mut)]
+        let mut n_req = glyph.map_or(0, |g| g.required_args());
         let has_limits = glyph.is_some_and(|g| g.has_limits());
         let mut opts = Vec::new();
         let mut args = Vec::new();
@@ -401,6 +402,19 @@ impl<'a> Parser<'a> {
         }
 
         if !has_limits {
+            // FIXME: this shouldn't belong here.... there should be a better way to pass
+            // string argumnets. Maybe we can add `requires_string_argument` or something like
+            // that in Glyph trait?
+
+            #[cfg(feature = "fancy")]
+            if name == "color" {
+                self.expect(Token::LBrace)?;
+                let color_name = self.parse_continuous_string(Token::RBrace)?;
+                self.advance(); // eat RBrace
+                args.push(Expr::Ident(color_name));
+                n_req -= 1;
+            }
+
             for _ in 0..n_req {
                 // A macro argument is either a braced group `{...}` or, following
                 // LaTeX, the single following atom (so `\mathbf x` and `\frac12`

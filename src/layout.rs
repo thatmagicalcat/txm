@@ -1,6 +1,6 @@
 use std::fmt;
 
-use crate::{buffer::RenderBuffer, error::ParseError};
+use crate::{UNIFORM_FRACTION_HEIGHT, buffer::RenderBuffer, error::ParseError, glyph::RenderCtx};
 
 #[derive(Clone)]
 pub struct RenderNode {
@@ -105,27 +105,31 @@ impl RenderNode {
         bottom: &Self,
         line_char: char,
         pad: usize,
-        uniform_height: bool,
+        #[allow(unused)] ctx: &RenderCtx,
     ) -> Self {
         let max_height = top.height.max(bottom.height);
         let inner_w = top.width.max(bottom.width);
         let w = inner_w + 2 * pad;
-        let h = if uniform_height {
+        let h = if UNIFORM_FRACTION_HEIGHT {
             2 * max_height
         } else {
             top.height + bottom.height
         } + 1;
 
-        let mut buffer = RenderBuffer::new(w, h);
+        let mut buffer = cfg_select! {
+            feature = "fancy" => RenderBuffer::new_styled(w, h, ctx.current_style),
+            _                 => RenderBuffer::new(w, h)
+        };
+
         let top_x = pad + (inner_w.saturating_sub(top.width)) / 2;
         let bot_x = pad + (inner_w.saturating_sub(bottom.width)) / 2;
-        let baseline = if uniform_height {
+        let baseline = if UNIFORM_FRACTION_HEIGHT {
             max_height
         } else {
             top.height
         };
 
-        if uniform_height {
+        if UNIFORM_FRACTION_HEIGHT {
             // let y = (max_height - top.height) / 2;
             let y = baseline - top.height;
             top.blit_into(&mut buffer, w, top_x, y);
@@ -299,6 +303,13 @@ impl RenderNode {
         let s: String = std::iter::repeat_n('\'', n).collect();
         let p = Self::from_str(&s);
         Self::hstack(&[base.clone(), p], 0)
+    }
+
+    #[cfg(feature = "fancy")]
+    pub fn apply_style(&mut self, style: crate::style::Style) {
+        for s in self.buffer.style_mut().iter_mut() {
+            *s = s.merge(style);
+        }
     }
 
     /// If fill is true, the middle line will also use left and right chars
@@ -540,7 +551,7 @@ impl RenderNode {
         }
 
         let baseline = matrix_layout_height / 2;
-        let mut buffer = RenderBuffer::new(matrix_layout_height, matrix_layout_width);
+        let mut buffer = RenderBuffer::new(matrix_layout_width, matrix_layout_height);
 
         for (i, row) in rendered_rows.iter().enumerate() {
             let row_content_height = row_max_baselines[i] + row_max_depths[i];
@@ -604,6 +615,107 @@ impl RenderNode {
             baseline: inner.baseline + 1,
             buffer,
         }
+    }
+
+    #[allow(unused)]
+    #[cfg(feature = "fancy")]
+    pub fn write_ansi(&self, f: &mut impl fmt::Write) -> fmt::Result {
+        let mut prev = crate::style::Style::new();
+
+        for y in 0..self.height {
+            let row_start = y * self.width;
+            for x in 0..self.width {
+                let i = row_start + x;
+                let style = self.buffer.styles[i];
+
+                if style != prev {
+                    if !prev.is_empty() {
+                        f.write_str("\x1b[0m")?;
+                    }
+                    if !style.is_empty() {
+                        style.write_ansi_prefix(f)?;
+                    }
+                    prev = style;
+                }
+
+                f.write_char(self.buffer.data[i])?;
+            }
+
+            f.write_char('\n')?;
+        }
+
+        if !prev.is_empty() {
+            f.write_str("\x1b[0m")?;
+        }
+
+        Ok(())
+    }
+
+    #[cfg(feature = "fancy")]
+    pub fn write_ansi_boxed(&self, f: &mut impl fmt::Write) -> fmt::Result {
+        use unicode_width::UnicodeWidthChar;
+
+        let mut row_widths = vec![0; self.height];
+        let mut max_width = 0;
+
+        for y in 0..self.height {
+            let row_start = y * self.width;
+            let mut row_width = 0;
+            for x in 0..self.width {
+                let ch = self.buffer.data[row_start + x];
+                row_width += ch.width().unwrap_or(0);
+            }
+            row_widths[y] = row_width;
+            if row_width > max_width {
+                max_width = row_width;
+            }
+        }
+
+        let border = "─".repeat(max_width + 2);
+        f.write_str("┌")?;
+        f.write_str(&border)?;
+        f.write_str("┐\n")?;
+
+        for y in 0..self.height {
+            f.write_str("│ ")?; // Left border
+
+            let row_start = y * self.width;
+            let mut prev = crate::style::Style::new();
+
+            for x in 0..self.width {
+                let i = row_start + x;
+                let style = self.buffer.styles[i];
+
+                if style != prev {
+                    if !prev.is_empty() {
+                        f.write_str("\x1b[0m")?;
+                    }
+                    if !style.is_empty() {
+                        style.write_ansi_prefix(f)?;
+                    }
+                    prev = style;
+                }
+
+                f.write_char(self.buffer.data[i])?;
+            }
+
+            if !prev.is_empty() {
+                f.write_str("\x1b[0m")?;
+            }
+
+            let padding = max_width - row_widths[y];
+            if padding > 0 {
+                write!(f, "{:padding$}", "", padding = padding)?;
+            }
+
+            f.write_str(" │\n")?; // Right border
+        }
+
+        f.write_str("└")?;
+        f.write_str(&border)?;
+        f.write_str("┘")?;
+
+        Ok(())
     }
 }
 

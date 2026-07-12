@@ -19,6 +19,15 @@ impl RenderBuffer {
         }
     }
 
+    #[cfg(feature = "fancy")]
+    pub fn new_styled(width: usize, height: usize, style: Style) -> Self {
+        Self {
+            data: vec![' '; width * height],
+            #[cfg(feature = "fancy")]
+            styles: vec![style; width * height],
+        }
+    }
+
     pub fn data_ref(&self) -> &[char] {
         self.as_ref()
     }

@@ -1,9 +1,14 @@
+#![allow(unused)]
+
 use std::fmt;
 
-#[derive(Default, Clone, Copy, PartialEq, Eq)]
+#[cfg(feature = "fancy")]
+use crate::ParseError;
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct Style(u16);
 
-pub const EMPTY: Style = Style(0);
+const EMPTY: Style = Style(0);
 
 const BOLD: u16 = 1 << 0;
 const ITALIC: u16 = 1 << 1;
@@ -181,4 +186,20 @@ impl Color {
             _ => Color::None,
         }
     }
+}
+
+#[cfg(feature = "fancy")]
+pub fn parse_color(s: &str) -> Result<Color, ParseError> {
+    Ok(match s {
+        "red" => Color::Red,
+        "green" => Color::Green,
+        "blue" => Color::Blue,
+        "yellow" => Color::Yellow,
+        "magenta" => Color::Magenta,
+        "cyan" => Color::Cyan,
+        "white" => Color::White,
+        "black" => Color::Black,
+
+        _ => return Err(ParseError(format!("invalid color name: {s}"))),
+    })
 }
