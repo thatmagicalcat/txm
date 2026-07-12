@@ -5,6 +5,11 @@ pub enum Expr {
     Group(Box<Expr>),
     Parens(Box<Expr>),
     Brackets(Box<Expr>),
+    Delimiter {
+        left: char,
+        right: char,
+        inner: Box<Expr>,
+    },
     Neg(Box<Expr>),
     Command {
         name: String,

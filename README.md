@@ -4,6 +4,7 @@
 </div>
 
 # Screenshots:
+![s0](./screenshots/0.png)
 ![s1](./screenshots/1.png)
 ![s2](./screenshots/2.png)
 ![s3](./screenshots/3.png)
@@ -30,7 +31,13 @@ cd txm-git
 makepkg -si
 ```
 
-### Using Cargo (Rust)
+### Gentoo Linux (GURU)
+Currently only in the dev branch, pull it directly from the dev branch or wait until it is inside the master branch.
+```bash
+emerge -a app-text/txm
+```
+
+### Cargo (Rust)
 ```
 $ cargo install txm
 ```
@@ -38,6 +45,9 @@ Or
 ```
 $ cargo install --git https://github.com/thatmagicalcat/txm
 ```
+
+# Projects using TXM:
+- [**txm.nvim**](https://github.com/rv178/txm.nvim/): LaTeX preview inside NeoVim using
 
 ## License
 - Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))

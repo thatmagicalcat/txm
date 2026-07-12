@@ -1,5 +1,4 @@
-use std::{env, process};
-
+use std::{env, fs, process};
 use unicode_width::UnicodeWidthStr;
 
 struct Flag {
@@ -32,6 +31,10 @@ fn main() {
             name: "--unboxed",
             desc: "Render without the decorative box border",
         },
+        Flag {
+            name: "--file <FILE>",
+            desc: "Render specified file (- for stdin)",
+        },
     ];
 
     let program: String = env::args().next().unwrap_or_default();
@@ -44,7 +47,10 @@ fn main() {
                 if config.unboxed {
                     print!("{rendered}");
                 } else {
-                    print!("{}", boxed(&rendered));
+                    cfg_select! {
+                        feature = "fancy" => println!("{rendered}"),
+                        _  => boxed(&rendered, &mut std::io::stdout()),
+                    }
                 }
             }
             Err(e) => {
@@ -52,27 +58,44 @@ fn main() {
                 std::process::exit(1);
             }
         },
-        Err(msg) if msg == "missing expression" => {
-            print!("{}", help(&program, &flags));
-        }
+        Err(msg) if msg == "missing expression" => print!("{}", help(&program, &flags)),
         Err(msg) => {
             eprintln!("error: {msg}");
-            eprintln!("{}", help(&program, &flags));
+            eprintln!("\nFor more information, try '--help'.");
             process::exit(2);
         }
     }
 }
 
 fn parse_args() -> Result<Cli, String> {
-    let args = env::args().skip(1);
+    let mut args = env::args().skip(1);
     let mut unboxed = false;
     let mut expression: Option<String> = None;
 
-    for arg in args {
+    while let Some(arg) = args.next() {
         match arg.as_str() {
             "--help" => return Ok(Cli::Help),
             "--version" => return Ok(Cli::Version),
             "--unboxed" => unboxed = true,
+            "--file" => {
+                // grab the next token for the file path
+                let path_arg = args
+                    .next()
+                    .ok_or_else(|| "missing file path after '--file'".to_string())?;
+
+                let path = if path_arg == "-" {
+                    "/dev/stdin"
+                } else {
+                    &path_arg
+                };
+
+                let contents = fs::read_to_string(path)
+                    .map_err(|err| format!("unable to open file '{path_arg}': {err}"))?;
+
+                if expression.replace(contents).is_some() {
+                    return Err(format!("unexpected extra argument '{path_arg}'"));
+                }
+            }
             s if s.starts_with("--") => return Err(format!("unknown flag '{s}'")),
             s => {
                 if expression.replace(s.to_string()).is_some() {
@@ -116,19 +139,25 @@ EXAMPLES:
     )
 }
 
-fn boxed(rendered: &str) -> String {
+#[allow(unused)]
+fn boxed(rendered: &str, f: &mut impl std::io::Write) {
     let lines: Vec<&str> = rendered.lines().collect();
     let width = lines
         .iter()
-        .map(|line| UnicodeWidthStr::width(*line))
+        .map(|line| line.width()) // Use the extension trait method directly
         .max()
         .unwrap_or(0);
+
     let border = "─".repeat(width + 2);
-    let mut out = format!("┌{border}┐\n│ {} │\n", " ".repeat(width));
+
+    let _ = writeln!(f, "┌{border}┐");
+    let _ = writeln!(f, "│ {:width$} │", "", width = width);
+
     for line in lines {
-        let padding = width - UnicodeWidthStr::width(line);
-        out.push_str(&format!("│ {line}{} │\n", " ".repeat(padding)));
+        let padding = width - line.width();
+        let _ = writeln!(f, "│ {line}{:padding$} │", "", padding = padding);
     }
-    out.push_str(&format!("│ {} │\n└{border}┘\n", " ".repeat(width)));
-    out
+
+    let _ = writeln!(f, "│ {:width$} │", "", width = width);
+    let _ = writeln!(f, "└{border}┘");
 }

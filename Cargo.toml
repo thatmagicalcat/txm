@@ -12,3 +12,11 @@ readme = "README.md"
 logos = "0.16"
 thiserror = "2"
 unicode-width = "0.2"
+
+ratatui-core = { version = "0.1", optional = true }
+yansi = { version = "1.0.1", optional = true }
+
+[features]
+default = []
+fancy = ["dep:yansi"]
+ratatui = ["dep:ratatui-core"]

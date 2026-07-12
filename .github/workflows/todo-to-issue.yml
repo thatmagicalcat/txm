@@ -1,0 +1,45 @@
+# Creates GitHub issues from TODO/FIXME comments in the diff
+name: "TODO to Issue"
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      MANUAL_COMMIT_REF:
+        description: "The SHA of the commit to get the diff for"
+        required: true
+      MANUAL_BASE_REF:
+        description: "By default, the commit entered above is compared to the one directly before it; to go back further, enter an earlier SHA here"
+        required: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: "TODO to Issue"
+        uses: alstr/todo-to-issue-action@v5
+        with:
+          IDENTIFIERS: '[{"name": "TODO", "labels": []}, {"name": "FIXME", "labels": ["bug"]}]'
+          INSERT_ISSUE_URLS: "true"
+
+      - name: Set Git user
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Commit and Push Changes
+        run: |
+          git add -A
+          if [[ `git status --porcelain` ]]; then
+            git commit -m "chore: add GitHub issue links to TODOs"
+            git push origin main
+          else
+            echo "No changes to commit"
+          fi
