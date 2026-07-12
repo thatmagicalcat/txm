@@ -81,6 +81,8 @@ fn build_registry() -> SymbolRegistry {
         ("chi", 'χ'),
         ("psi", 'ψ'),
         ("omega", 'ω'),
+        ("vee", '∨'),
+        ("wedge", '∧'),
     ] {
         r.register(cmd, UnicodeGlyph(ch));
     }
@@ -102,8 +104,8 @@ fn build_registry() -> SymbolRegistry {
 
     for name in &[
         "sin", "cos", "tan", "cot", "sec", "csc", "arcsin", "arccos", "arctan", "sinh", "cosh",
-        "tanh", "log", "ln", "lg", "det", "dim", "hom", "ker", "exp", "deg", "gcd", "lcm", "lim",
-        "sup", "inf", "max", "min", "arg", "Pr", "mod", "adj",
+        "coth", "tanh", "log", "ln", "lg", "det", "dim", "hom", "ker", "exp", "deg", "gcd", "lcm",
+        "lim", "sup", "inf", "max", "min", "arg", "Pr", "mod", "adj",
     ] {
         r.register(*name, TextGlyph(name));
     }
@@ -176,6 +178,17 @@ fn build_registry() -> SymbolRegistry {
         ("rceil", '⌉'),
         ("quad", ' '),
         ("dots", '⋯'),
+        ("ldots", '…'),
+        ("vdots", '⋮'),
+        ("ddots", '⋱'),
+        ("aleph", 'ℵ'),
+        ("hbar", 'ℏ'),
+        ("ell", 'ℓ'),
+        ("wp", '℘'),
+        ("oplus", '⊕'),
+        ("ominus", '⊖'),
+        ("otimes", '⊗'),
+        ("oslash", '⊘'),
     ] {
         r.register(cmd, UnicodeGlyph(ch));
     }
