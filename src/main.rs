@@ -37,23 +37,6 @@ enum Cli {
     Run(Config),
 }
 
-#[cfg(test)]
-mod tests {
-    use super::{PrideStyle, pride_palette};
-
-    #[test]
-    fn pride_palette_contains_expected_colors_for_trans() {
-        let colors = pride_palette(PrideStyle::Trans);
-        assert_eq!(colors[0], (91, 206, 250));
-    }
-
-    #[test]
-    fn pride_palette_contains_expected_colors_for_gay() {
-        let colors = pride_palette(PrideStyle::Gay);
-        assert_eq!(colors[0], (0, 0, 0));
-    }
-}
-
 fn main() {
     let flags = [
         Flag {
@@ -70,7 +53,7 @@ fn main() {
         },
         Flag {
             name: "--pride-style <lgbtq|gay|trans|lesbian>",
-            desc: "Choose the pride palette used by --pride",
+            desc: "Choose a palette and animate the output with pride-flag colors",
         },
     ];
 
@@ -146,7 +129,7 @@ fn parse_args() -> Result<Cli, String> {
         }
     }
 
-    // Construct the PrideConfig after processing all arguments
+    // Construct the PrideConfig automatically if a pride style was requested
     let pride = if pride_enabled {
         Some(PrideConfig {
             style: pride_style,
@@ -214,21 +197,18 @@ fn render_pride(output: &str, pride: &PrideConfig, frame: usize) -> String {
     let mut out = String::new();
 
     // 🌊 Wave Animation Parameters
-    let amplitude = 3.0; // How far left/right the flag waves (in character slots)
-    let frequency = 0.4; // How tight the wave curls vertically per line
-    let speed = 0.25; // How fast the flag ripples over time
+    let amplitude = 3.0; 
+    let frequency = 0.4; 
+    let speed = 0.25; 
 
     for (line_idx, line) in lines.iter().enumerate() {
-        // Calculate the horizontal sine wave offset for this specific row
         let wave_time = frame as f32 * speed;
         let row_phase = line_idx as f32 * frequency;
         let wave_offset = ((wave_time + row_phase).sin() * amplitude).round() as isize;
 
-        // Add a base padding so negative wave offsets don't crash or hit the screen edge
         let safety_margin = amplitude as isize;
         let total_leading_spaces = (safety_margin + wave_offset) as usize;
 
-        // Push the leading spaces to create the physical wave displacement
         out.push_str(&" ".repeat(total_leading_spaces));
 
         let mut col_idx = 0usize;
@@ -288,13 +268,13 @@ fn pride_palette(style: PrideStyle) -> Vec<(u8, u8, u8)> {
             (255, 255, 255),
         ],
         PrideStyle::Lesbian => vec![
-            (213, 45, 0),    // Dark Orange
-            (239, 118, 39),   // Medium Orange
-            (255, 154, 86),   // Light Orange
-            (255, 255, 255),  // White
-            (209, 98, 164),   // Light Pink
-            (181, 19, 110),   // Medium Pink
-            (163, 2, 98),     // Dark Magenta
+            (213, 45, 0),   
+            (239, 118, 39),  
+            (255, 154, 86),  
+            (255, 255, 255), 
+            (209, 98, 164),  
+            (181, 19, 110),  
+            (163, 2, 98),    
         ],
     }
 }

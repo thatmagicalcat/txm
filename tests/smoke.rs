@@ -153,3 +153,45 @@ fn stretchy_brackets_use_side_correct_extensions() {
         lines[1]
     );
 }
+
+#[test]
+fn cli_accepts_trans_pride_flag() {
+    let output = Command::new(env!("CARGO_BIN_EXE_txm"))
+        .arg("E = mc^2")
+        .arg("--pride-style")
+        .arg("trans")
+        .output()
+        .expect("failed to run txm");
+
+    if !output.status.success() {
+        panic!("Command failed with stderr: {}", String::from_utf8_lossy(&output.stderr));
+    }
+}
+
+#[test]
+fn cli_accepts_gay_pride_flag() {
+    let output = Command::new(env!("CARGO_BIN_EXE_txm"))
+        .arg("x")
+        .arg("--pride-style")
+        .arg("gay")
+        .output()
+        .expect("failed to run txm");
+
+    if !output.status.success() {
+        panic!("Command failed with stderr: {}", String::from_utf8_lossy(&output.stderr));
+    }
+}
+
+#[test]
+fn cli_accepts_lesbian_pride_flag() {
+    let output = Command::new(env!("CARGO_BIN_EXE_txm"))
+        .arg("x")
+        .arg("--pride-style")
+        .arg("lesbian")
+        .output()
+        .expect("failed to run txm");
+
+    if !output.status.success() {
+        panic!("Command failed with stderr: {}", String::from_utf8_lossy(&output.stderr));
+    }
+}
