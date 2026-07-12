@@ -302,6 +302,52 @@ impl Glyph for SummationGlyph {
 }
 
 #[derive(Debug)]
+pub struct ProductGlyph;
+impl Glyph for ProductGlyph {
+    fn has_limits(&self) -> bool {
+        true
+    }
+
+    fn required_args(&self) -> usize {
+        1
+    }
+
+    fn render(
+        &self,
+        args: &[RenderNode],
+        _opts: &[RenderNode],
+        _ctx: &mut RenderCtx,
+    ) -> RenderNode {
+        if args.is_empty() {
+            return RenderNode {
+                width: 4,
+                height: 2,
+                baseline: 1,
+                buffer: vec!['┳', '━', '┳', ' ', '┃', ' ', '┃', ' '].into(),
+            };
+        }
+
+        let inner = &args[0];
+
+        let w = inner.width + 4;
+        let h = inner.height.max(1) + 1;
+        let mut data = RenderBuffer::new(w, h);
+        data[0..4].copy_from_slice(&['┳', '━', '┳', ' ']);
+        for row in 1..h {
+            data[row * w..row * w + 4].copy_from_slice(&['┃', ' ', '┃', ' ']);
+        }
+        inner.blit_into(&mut data, w, 4, 1);
+
+        RenderNode {
+            width: w,
+            height: h,
+            baseline: inner.baseline + 1,
+            buffer: data,
+        }
+    }
+}
+
+#[derive(Debug)]
 pub struct IntegralGlyph;
 
 impl Glyph for IntegralGlyph {

@@ -114,6 +114,7 @@ fn build_registry() -> SymbolRegistry {
     r.register("lim", LimitGlyph);
     r.register("int", IntegralGlyph);
     r.register("sum", SummationGlyph);
+    r.register("prod", ProductGlyph);
 
     #[cfg(feature = "fancy")]
     r.register("color", TextColorGlyph);
@@ -165,7 +166,6 @@ fn build_registry() -> SymbolRegistry {
         ("supseteq", '⊇'),
         ("cup", '∪'),
         ("cap", '∩'),
-        ("prod", '∏'),
         ("lvert", '|'),
         ("rvert", '|'),
         ("langle", '⟨'),
