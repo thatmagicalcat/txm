@@ -1,13 +1,13 @@
 use std::fmt;
 
-use crate::error::ParseError;
+use crate::{buffer::RenderBuffer, error::ParseError};
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct RenderNode {
     pub width: usize,
     pub height: usize,
     pub baseline: usize,
-    pub data: Vec<char>,
+    pub buffer: RenderBuffer,
 }
 
 impl RenderNode {
@@ -16,7 +16,7 @@ impl RenderNode {
             width,
             height,
             baseline,
-            data: vec![' '; width * height],
+            buffer: RenderBuffer::new(width, height),
         }
     }
 
@@ -25,7 +25,7 @@ impl RenderNode {
             width: 1,
             height: 1,
             baseline: 0,
-            data: vec![c],
+            buffer: vec![c].into(),
         }
     }
 
@@ -36,11 +36,11 @@ impl RenderNode {
             width,
             height: 1,
             baseline: 0,
-            data: chars,
+            buffer: chars.into(),
         }
     }
 
-    pub fn blit_into(&self, target: &mut [char], target_width: usize, x: usize, y: usize) {
+    pub fn blit_into(&self, target: &mut RenderBuffer, target_width: usize, x: usize, y: usize) {
         for row in 0..self.height {
             if y + row >= target.len() / target_width {
                 break;
@@ -52,7 +52,11 @@ impl RenderNode {
 
             if dst_start + self.width <= target.len() {
                 target[dst_start..dst_start + self.width]
-                    .copy_from_slice(&self.data[src_start..src_end]);
+                    .copy_from_slice(&self.buffer[src_start..src_end]);
+
+                #[cfg(feature = "fancy")]
+                target.style_mut()[dst_start..dst_start + self.width]
+                    .copy_from_slice(&self.buffer.style_ref()[src_start..src_end]);
             }
         }
     }
@@ -78,12 +82,12 @@ impl RenderNode {
 
         let total_width: usize =
             nodes.iter().map(|n| n.width).sum::<usize>() + spacing * (nodes.len() - 1);
-        let mut data = vec![' '; total_width * height];
+        let mut buffer = RenderBuffer::new(total_width, height);
 
         let mut x = 0;
         for node in nodes {
             let y = baseline.saturating_sub(node.baseline);
-            node.blit_into(&mut data, total_width, x, y);
+            node.blit_into(&mut buffer, total_width, x, y);
             x += node.width + spacing;
         }
 
@@ -91,7 +95,7 @@ impl RenderNode {
             width: total_width,
             height,
             baseline,
-            data,
+            buffer,
         }
     }
 
@@ -112,7 +116,7 @@ impl RenderNode {
             top.height + bottom.height
         } + 1;
 
-        let mut data = vec![' '; w * h];
+        let mut buffer = RenderBuffer::new(w, h);
         let top_x = pad + (inner_w.saturating_sub(top.width)) / 2;
         let bot_x = pad + (inner_w.saturating_sub(bottom.width)) / 2;
         let baseline = if uniform_height {
@@ -124,24 +128,24 @@ impl RenderNode {
         if uniform_height {
             // let y = (max_height - top.height) / 2;
             let y = baseline - top.height;
-            top.blit_into(&mut data, w, top_x, y);
+            top.blit_into(&mut buffer, w, top_x, y);
 
-            bottom.blit_into(&mut data, w, bot_x, baseline + 1);
+            bottom.blit_into(&mut buffer, w, bot_x, baseline + 1);
         } else {
-            top.blit_into(&mut data, w, top_x, 0);
+            top.blit_into(&mut buffer, w, top_x, 0);
             let bot_x = pad + (inner_w.saturating_sub(bottom.width)) / 2;
-            bottom.blit_into(&mut data, w, bot_x, baseline + 1);
+            bottom.blit_into(&mut buffer, w, bot_x, baseline + 1);
         }
 
         for x in 0..w {
-            data[baseline * w + x] = line_char;
+            buffer.data_mut()[baseline * w + x] = line_char;
         }
 
         Self {
             width: w,
             height: h,
             baseline,
-            data,
+            buffer,
         }
     }
 
@@ -153,27 +157,27 @@ impl RenderNode {
         let width = lhs.width + 3 + rhs.width;
         let height = (lhs_y + lhs.height).max(rhs_y + rhs.height);
 
-        let mut data = vec![' '; width * height];
+        let mut buffer = RenderBuffer::new(width, height);
 
-        lhs.blit_into(&mut data, width, 0, lhs_y);
-        data[baseline * width + lhs.width + 1] = op;
-        rhs.blit_into(&mut data, width, lhs.width + 3, rhs_y);
+        lhs.blit_into(&mut buffer, width, 0, lhs_y);
+        buffer[baseline * width + lhs.width + 1] = op;
+        rhs.blit_into(&mut buffer, width, lhs.width + 3, rhs_y);
 
         Self {
             width,
             height,
             baseline,
-            data,
+            buffer,
         }
     }
 
     pub fn superscript(base: &Self, exp: &Self) -> Self {
         // check if we can use special subscript unicode chars for this superscript
         if exp.height == 1 {
-            let mut converted = Vec::with_capacity(exp.data.len());
+            let mut converted = Vec::with_capacity(exp.buffer.len());
             let mut all_convertible = true;
 
-            for &c in &exp.data {
+            for &c in exp.buffer.data_ref() {
                 if let Some(sup_c) = to_superscript_char(c) {
                     converted.push(sup_c);
                 } else {
@@ -184,19 +188,19 @@ impl RenderNode {
 
             if all_convertible {
                 let width = base.width + converted.len();
-                let mut data = vec![' '; width * base.height];
-                base.blit_into(&mut data, width, 0, 0);
+                let mut buffer = RenderBuffer::new(width, base.height);
+                base.blit_into(&mut buffer, width, 0, 0);
 
                 let target_row = 0;
                 let dst_start = target_row * width + base.width;
                 let dst_end = dst_start + converted.len();
-                data[dst_start..dst_end].copy_from_slice(&converted);
+                buffer[dst_start..dst_end].copy_from_slice(&converted);
 
                 return Self {
                     width,
                     height: base.height,
                     baseline: base.baseline,
-                    data,
+                    buffer,
                 };
             }
         }
@@ -205,25 +209,25 @@ impl RenderNode {
         let width = exp.width + base.width;
         let baseline = base.baseline + exp.height;
 
-        let mut data = vec![' '; width * height];
-        base.blit_into(&mut data, width, 0, exp.height);
-        exp.blit_into(&mut data, width, base.width, 0);
+        let mut buffer = RenderBuffer::new(width, height);
+        base.blit_into(&mut buffer, width, 0, exp.height);
+        exp.blit_into(&mut buffer, width, base.width, 0);
 
         Self {
             width,
             height,
             baseline,
-            data,
+            buffer,
         }
     }
 
     pub fn subscript(base: &Self, sub: &Self) -> Self {
         // check if we can use special subscript unicode chars for this subscript
         if sub.height == 1 {
-            let mut converted = Vec::with_capacity(sub.data.len());
+            let mut converted = Vec::with_capacity(sub.buffer.len());
             let mut all_convertible = true;
 
-            for c in &sub.data {
+            for c in sub.buffer.data_ref() {
                 if let Some(sub_c) = to_subscript_char(*c) {
                     converted.push(sub_c);
                 } else {
@@ -235,19 +239,19 @@ impl RenderNode {
             if all_convertible {
                 let width = base.width + converted.len();
 
-                let mut data = vec![' '; width * base.height];
-                base.blit_into(&mut data, width, 0, 0);
+                let mut buffer = RenderBuffer::new(width, base.height);
+                base.blit_into(&mut buffer, width, 0, 0);
 
                 let target_row = base.baseline;
                 let dst_start = target_row * width + base.width;
                 let dst_end = dst_start + converted.len();
-                data[dst_start..dst_end].copy_from_slice(&converted);
+                buffer[dst_start..dst_end].copy_from_slice(&converted);
 
                 return Self {
                     width,
                     height: base.height,
                     baseline: base.baseline,
-                    data,
+                    buffer,
                 };
             }
         }
@@ -258,15 +262,15 @@ impl RenderNode {
         let height = (sub_y + sub.height).max(base.height);
         let width = base.width + sub.width;
 
-        let mut data = vec![' '; width * height];
-        base.blit_into(&mut data, width, 0, 0);
-        sub.blit_into(&mut data, width, base.width, sub_y);
+        let mut buffer = RenderBuffer::new(width, height);
+        base.blit_into(&mut buffer, width, 0, 0);
+        sub.blit_into(&mut buffer, width, base.width, sub_y);
 
         Self {
             width,
             height,
             baseline: base.baseline,
-            data,
+            buffer,
         }
     }
 
@@ -278,16 +282,16 @@ impl RenderNode {
         let width = base.width + sub.width.max(sup.width);
         let baseline = base.baseline + sup_h;
 
-        let mut data = vec![' '; width * height];
-        base.blit_into(&mut data, width, 0, sup_h);
-        sup.blit_into(&mut data, width, base.width, 0);
-        sub.blit_into(&mut data, width, base.width, sub_y + sup_h);
+        let mut buffer = RenderBuffer::new(width, height);
+        base.blit_into(&mut buffer, width, 0, sup_h);
+        sup.blit_into(&mut buffer, width, base.width, 0);
+        sub.blit_into(&mut buffer, width, base.width, sub_y + sup_h);
 
         Self {
             width,
             height,
             baseline,
-            data,
+            buffer,
         }
     }
 
@@ -302,9 +306,9 @@ impl RenderNode {
         // one-liner expressions
         if inner.height <= 1 {
             let mut result = Self::new(inner.width + 2, 1, 0);
-            result.data[0] = left;
-            inner.blit_into(&mut result.data, result.width, 1, 0);
-            result.data[result.width - 1] = right;
+            result.buffer[0] = left;
+            inner.blit_into(&mut result.buffer, result.width, 1, 0);
+            result.buffer[result.width - 1] = right;
             return result;
         }
 
@@ -312,8 +316,8 @@ impl RenderNode {
         let w = inner.width + 4;
         let baseline = inner.baseline;
 
-        let mut data = vec![' '; w * h];
-        inner.blit_into(&mut data, w, 2, 0);
+        let mut buffer = RenderBuffer::new(w, h);
+        inner.blit_into(&mut buffer, w, 2, 0);
 
         let (tl, tr, bl, br, mid_l, mid_r) = match (left, right) {
             ('(', ')') => ('⎛', '⎞', '⎝', '⎠', '⎜', '⎟'),
@@ -324,21 +328,21 @@ impl RenderNode {
             _ => (left, right, left, right, '│', '│'),
         };
 
-        data[0] = tl;
-        data[w - 1] = tr;
-        data[(h - 1) * w] = bl;
-        data[(h - 1) * w + w - 1] = br;
+        buffer[0] = tl;
+        buffer[w - 1] = tr;
+        buffer[(h - 1) * w] = bl;
+        buffer[(h - 1) * w + w - 1] = br;
 
         for y in 1..h - 1 {
             if left == '{' && y == baseline {
-                data[y * w] = '⎨';
+                buffer[y * w] = '⎨';
             } else {
-                data[y * w] = mid_l;
+                buffer[y * w] = mid_l;
             }
             if right == '}' && y == baseline {
-                data[y * w + w - 1] = '⎬';
+                buffer[y * w + w - 1] = '⎬';
             } else {
-                data[y * w + w - 1] = mid_r;
+                buffer[y * w + w - 1] = mid_r;
             }
         }
 
@@ -346,7 +350,7 @@ impl RenderNode {
             width: w,
             height: h,
             baseline,
-            data,
+            buffer,
         }
     }
 
@@ -355,23 +359,23 @@ impl RenderNode {
         let w = inner.width + 2;
         let baseline = inner.baseline;
 
-        let mut data = vec![' '; w * h];
-        inner.blit_into(&mut data, w, 2, 0);
+        let mut buffer = RenderBuffer::new(w, h);
+        inner.blit_into(&mut buffer, w, 2, 0);
 
         let mid_l = middle;
 
-        data[0] = top;
-        data[(h - 1) * w] = bottom;
+        buffer[0] = top;
+        buffer[(h - 1) * w] = bottom;
 
         for y in 1..h - 1 {
-            data[y * w] = mid_l;
+            buffer[y * w] = mid_l;
         }
 
         Self {
             width: w,
             height: h,
             baseline,
-            data,
+            buffer,
         }
     }
 
@@ -381,40 +385,40 @@ impl RenderNode {
         let w = inner.width + 2;
         let baseline = inner.baseline;
 
-        let mut data = vec![' '; w * h];
-        inner.blit_into(&mut data, w, 0, 0);
+        let mut buffer = RenderBuffer::new(w, h);
+        inner.blit_into(&mut buffer, w, 0, 0);
 
-        data[w - 1] = top;
-        data[(h - 1) * w + w - 1] = bottom;
+        buffer[w - 1] = top;
+        buffer[(h - 1) * w + w - 1] = bottom;
 
         for y in 1..h - 1 {
-            data[y * w + w - 1] = middle;
+            buffer[y * w + w - 1] = middle;
         }
 
         Self {
             width: w,
             height: h,
             baseline,
-            data,
+            buffer,
         }
     }
 
     pub fn abs(inner: &Self) -> Self {
         let h = inner.height;
         let w = inner.width + 2;
-        let mut data = vec![' '; w * h];
+        let mut buffer = RenderBuffer::new(w, h);
 
-        inner.blit_into(&mut data, w, 1, 0);
+        inner.blit_into(&mut buffer, w, 1, 0);
 
         for y in 0..h {
-            data[y * w] = '│';
-            data[y * w + w - 1] = '│';
+            buffer[y * w] = '│';
+            buffer[y * w + w - 1] = '│';
         }
         Self {
             width: w,
             height: h,
             baseline: inner.baseline,
-            data,
+            buffer,
         }
     }
 
@@ -423,26 +427,26 @@ impl RenderNode {
         let w = inner.width + 3;
         let baseline = inner.baseline + 1;
 
-        let mut data = vec![' '; w * h];
-        inner.blit_into(&mut data, w, 3, 1);
+        let mut buffer = RenderBuffer::new(w, h);
+        inner.blit_into(&mut buffer, w, 3, 1);
 
-        data[1] = '┌';
+        buffer[1] = '┌';
 
-        for item in data.iter_mut().take(w).skip(2) {
+        for item in buffer.data_mut().iter_mut().take(w).skip(2) {
             *item = '─';
         }
 
         for y in 1..h {
-            data[y * w + 1] = '│';
+            buffer[y * w + 1] = '│';
         }
 
-        data[(h - 1) * w] = '╲';
+        buffer[(h - 1) * w] = '╲';
 
         Self {
             width: w,
             height: h,
             baseline,
-            data,
+            buffer,
         }
     }
 
@@ -452,22 +456,22 @@ impl RenderNode {
         // let h = upper.height + base.height + lower.height;
         let h = base.height + 2 * max_h;
 
-        let mut data = vec![' '; w * h];
+        let mut buffer = RenderBuffer::new(w, h);
 
         // let ux = (w.saturating_sub(upper.width)) / 2;
-        upper.blit_into(&mut data, w, 0, max_h - upper.height);
+        upper.blit_into(&mut buffer, w, 0, max_h - upper.height);
 
         // let bx = (w.saturating_sub(base.width)) / 2;
-        base.blit_into(&mut data, w, 0, max_h);
+        base.blit_into(&mut buffer, w, 0, max_h);
 
         // let lx = (w.saturating_sub(lower.width)) / 2;
-        lower.blit_into(&mut data, w, 0, max_h + base.height);
+        lower.blit_into(&mut buffer, w, 0, max_h + base.height);
 
         Self {
             width: w,
             height: h,
             baseline: max_h + base.baseline,
-            data,
+            buffer,
         }
     }
 
@@ -536,7 +540,7 @@ impl RenderNode {
         }
 
         let baseline = matrix_layout_height / 2;
-        let mut data = vec![' '; matrix_layout_height * matrix_layout_width];
+        let mut buffer = RenderBuffer::new(matrix_layout_height, matrix_layout_width);
 
         for (i, row) in rendered_rows.iter().enumerate() {
             let row_content_height = row_max_baselines[i] + row_max_depths[i];
@@ -556,7 +560,7 @@ impl RenderNode {
                 let center_x = cell_x + item_x_in_cell;
                 let center_y = cell_y + item_y_in_cell;
 
-                item.blit_into(&mut data, matrix_layout_width, center_x, center_y);
+                item.blit_into(&mut buffer, matrix_layout_width, center_x, center_y);
             }
         }
 
@@ -564,7 +568,7 @@ impl RenderNode {
             width: matrix_layout_width,
             height: matrix_layout_height,
             baseline,
-            data,
+            buffer,
         };
 
         Ok(RenderNode::stretchy_delim(
@@ -582,23 +586,23 @@ impl RenderNode {
     pub fn accent(inner: &Self, mark: char, stretch: bool) -> Self {
         let width = inner.width.max(1);
         let height = inner.height + 1;
-        let mut data = vec![' '; width * height];
+        let mut buffer = RenderBuffer::new(width, height);
 
         if stretch {
-            for cell in data.iter_mut().take(width) {
+            for cell in buffer.data_mut().iter_mut().take(width) {
                 *cell = mark;
             }
         } else {
-            data[width / 2] = mark;
+            buffer[width / 2] = mark;
         }
 
-        inner.blit_into(&mut data, width, 0, 1);
+        inner.blit_into(&mut buffer, width, 0, 1);
 
         Self {
             width,
             height,
             baseline: inner.baseline + 1,
-            data,
+            buffer,
         }
     }
 }
@@ -609,7 +613,7 @@ impl fmt::Display for RenderNode {
             let start = y * self.width;
             let end = start + self.width;
 
-            for &c in &self.data[start..end] {
+            for &c in &self.buffer[start..end] {
                 write!(f, "{c}")?;
             }
 

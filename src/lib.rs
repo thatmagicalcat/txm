@@ -16,6 +16,10 @@ mod layout;
 mod parser;
 mod render;
 mod token;
+mod buffer;
+
+#[cfg(feature = "fancy")]
+mod style;
 
 pub use error::ParseError;
 

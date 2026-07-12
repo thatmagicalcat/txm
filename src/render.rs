@@ -3,6 +3,9 @@ use crate::error::ParseError;
 use crate::glyph::{RenderCtx, SymbolRegistry};
 use crate::layout::RenderNode;
 
+#[cfg(feature = "fancy")]
+use crate::style::StyleMap;
+
 pub fn render(
     expr: &Expr,
     reg: &SymbolRegistry,
@@ -26,8 +29,8 @@ pub fn render(
         Expr::Neg(inner) => {
             let inner = render(inner, reg, ctx)?;
             let mut result = RenderNode::new(inner.width + 1, inner.height, inner.baseline);
-            result.data[inner.baseline * result.width] = '-';
-            inner.blit_into(&mut result.data, result.width, 1, 0);
+            result.buffer[inner.baseline * result.width] = '-';
+            inner.blit_into(&mut result.buffer, result.width, 1, 0);
             Ok(result)
         }
 
@@ -213,6 +216,7 @@ mod tests {
         let expr = Parser::new(input, &tokens, &registry).parse_expr().unwrap();
         let node = render(&expr, &registry, &mut RenderCtx::default()).unwrap();
         let rows: Vec<String> = node
+            .buffer
             .data
             .chunks(node.width)
             .map(|row| row.iter().collect())

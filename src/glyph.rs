@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 
 use crate::UNIFORM_FRACTION_HEIGHT;
+use crate::buffer::RenderBuffer;
 use crate::layout::RenderNode;
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -146,16 +147,16 @@ impl Glyph for SqrtGlyph {
         if let Some(root) = opts.first() {
             let w = root.width + radicand.width;
             let h = root.height.max(radicand.height);
-            let mut data = vec![' '; w * h];
+            let mut buffer = RenderBuffer::new(w, h);
 
-            root.blit_into(&mut data, w, 0, 0);
-            radicand.blit_into(&mut data, w, root.width, 0);
+            root.blit_into(&mut buffer, w, 0, 0);
+            radicand.blit_into(&mut buffer, w, root.width, 0);
 
             RenderNode {
                 width: w,
                 height: h,
                 baseline: radicand.baseline,
-                data,
+                buffer,
             }
         } else {
             radicand
@@ -189,14 +190,14 @@ impl Glyph for SummationGlyph {
                 width: 4,
                 height: 3,
                 baseline: 1,
-                data: vec!['━', '━', '┓', ' ', '❯', ' ', ' ', ' ', '━', '━', '┛', ' '],
+                buffer: vec!['━', '━', '┓', ' ', '❯', ' ', ' ', ' ', '━', '━', '┛', ' '].into(),
             };
         }
 
         let inner = &args[0];
         if inner.height <= 2 {
             let w = inner.width + 4;
-            let mut data = vec![' '; w * 3];
+            let mut data = RenderBuffer::new(w, 3);
 
             data[0..3].copy_from_slice(&['━', '━', '┓']);
             data[w..w + 3].copy_from_slice(&['⟩', ' ', ' ']);
@@ -207,24 +208,29 @@ impl Glyph for SummationGlyph {
                 width: w,
                 height: 3,
                 baseline: 1,
-                data,
+                buffer: data,
             };
         }
 
         let h = inner.height;
         let w_sigma = ((1.5 * h as f32) as usize).max(h / 2 + 2);
         let w = w_sigma + 1 + inner.width; // 1 space padding
-        let mut data = vec![' '; w * h];
+        let mut buffer = RenderBuffer::new(w, h);
 
         // first row
-        data[w_sigma - 1] = '┓';
-        for c in data.iter_mut().take(w_sigma - 1) {
+        buffer[w_sigma - 1] = '┓';
+        for c in buffer.data_mut().iter_mut().take(w_sigma - 1) {
             *c = '━';
         }
 
         // last row
-        data[w * (h - 1) + w_sigma - 1] = '┛';
-        for c in data.iter_mut().skip(w * (h - 1)).take(w_sigma - 1) {
+        buffer[w * (h - 1) + w_sigma - 1] = '┛';
+        for c in buffer
+            .data_mut()
+            .iter_mut()
+            .skip(w * (h - 1))
+            .take(w_sigma - 1)
+        {
             *c = '━';
         }
 
@@ -241,16 +247,16 @@ impl Glyph for SummationGlyph {
                 '╱'
             };
 
-            data[row_offset + col] = ch;
+            buffer[row_offset + col] = ch;
         }
 
-        inner.blit_into(&mut data, w, w_sigma + 1, 0);
+        inner.blit_into(&mut buffer, w, w_sigma + 1, 0);
 
         RenderNode {
             width: w,
             height: h,
             baseline: inner.baseline,
-            data,
+            buffer,
         }
     }
 }
@@ -279,27 +285,27 @@ impl Glyph for IntegralGlyph {
                 width: 2, // symbol + space
                 height: 3,
                 baseline: 1,
-                data: vec!['⎛', ' ', '⎜', ' ', '⎠', ' '],
+                buffer: vec!['⎛', ' ', '⎜', ' ', '⎠', ' '].into(),
             }
         } else {
             // no stretching required
             if args[0].height <= 3 {
                 let w = args[0].width + 2; // symbol + space
-                let mut data = vec![' '; w * 3];
+                let mut buffer = RenderBuffer::new(w, 3);
 
-                data[0] = '⎛';
-                data[w] = '⎜';
-                data[2 * w] = '⎠';
+                buffer[0] = '⎛';
+                buffer[w] = '⎜';
+                buffer[2 * w] = '⎠';
 
                 // center one-liner expressions
                 let y = if args[0].height == 1 { 1 } else { 0 };
-                args[0].blit_into(&mut data, w, 2, y);
+                args[0].blit_into(&mut buffer, w, 2, y);
 
                 return RenderNode {
                     width: w,
                     height: 3,
                     baseline: 1,
-                    data,
+                    buffer,
                 };
             }
 
@@ -327,11 +333,16 @@ impl Glyph for AlphabetGlyph {
         _ctx: &mut RenderCtx,
     ) -> RenderNode {
         let src = &args[0];
+        let mut buffer = src.buffer.clone();
+        for ele in buffer.data_mut().iter_mut() {
+            *ele = (self.0)(*ele)
+        }
+
         RenderNode {
             width: src.width,
             height: src.height,
             baseline: src.baseline,
-            data: src.data.iter().map(|&c| (self.0)(c)).collect(),
+            buffer,
         }
     }
 }
