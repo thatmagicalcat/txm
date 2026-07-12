@@ -429,7 +429,18 @@ impl<'a> Parser<'a> {
         let Some((right_token, _)) = self.tokens.get(match_idx + 1) else {
             return Err(ParseError("expected a delimiter after \\right".into()));
         };
-        let right = self.delimiter_char(right_token, "right")?;
+        let right = match right_token {
+            Token::LParen | Token::Escape("(") => '(',
+            Token::LBracket | Token::Escape("[") => '[',
+            Token::LBrace | Token::Escape("{") => '{',
+            Token::RParen | Token::Escape(")") => ')',
+            Token::RBracket | Token::Escape("]") => ']',
+            Token::RBrace | Token::Escape("}") => '}',
+            Token::Pipe | Token::Escape("|") => '|',
+            _ => {
+                return Err(ParseError("expected a delimiter after \\right".into()));
+            }
+        };
         let expected_right = match left {
             '(' => ')',
             '[' => ']',
@@ -453,8 +464,7 @@ impl<'a> Parser<'a> {
     }
 
     fn read_delimiter(&mut self, side: &str) -> Result<char, ParseError> {
-        let token = self.peek().cloned();
-        let delim = match token.as_ref() {
+        let delim = match self.peek() {
             Some(Token::LParen) | Some(Token::Escape("(")) => '(',
             Some(Token::LBracket) | Some(Token::Escape("[")) => '[',
             Some(Token::LBrace) | Some(Token::Escape("{")) => '{',
@@ -467,23 +477,8 @@ impl<'a> Parser<'a> {
             }
         };
 
-        if token.is_some() {
-            self.advance();
-        }
+        self.advance();
         Ok(delim)
-    }
-
-    fn delimiter_char(&self, token: &Token<'_>, side: &str) -> Result<char, ParseError> {
-        match token {
-            Token::LParen | Token::Escape("(") => Ok('('),
-            Token::LBracket | Token::Escape("[") => Ok('['),
-            Token::LBrace | Token::Escape("{") => Ok('{'),
-            Token::RParen | Token::Escape(")") => Ok(')'),
-            Token::RBracket | Token::Escape("]") => Ok(']'),
-            Token::RBrace | Token::Escape("}") => Ok('}'),
-            Token::Pipe | Token::Escape("|") => Ok('|'),
-            _ => Err(ParseError(format!("expected a delimiter after \\{side}"))),
-        }
     }
 
     fn parse_command(&mut self, name: &str) -> Result<Expr, ParseError> {
