@@ -181,8 +181,24 @@ pub enum Color {
 
 impl Color {
     pub const fn from_u16(v: u16) -> Color {
+        use Color::*;
         match v {
-            1..=16 => unsafe { core::mem::transmute::<u16, Color>(v) },
+            1 => Black,
+            2 => Red,
+            3 => Green,
+            4 => Yellow,
+            5 => Blue,
+            6 => Magenta,
+            7 => Cyan,
+            8 => White,
+            9 => BrightBlack,
+            10 => BrightRed,
+            11 => BrightGreen,
+            12 => BrightYellow,
+            13 => BrightBlue,
+            14 => BrightMagenta,
+            15 => BrightCyan,
+            16 => BrightWhite,
             _ => Color::None,
         }
     }
