@@ -35,7 +35,6 @@ makepkg -si
 ```
 
 ### Gentoo Linux (GURU)
-Currently only in the dev branch, pull it directly from the dev branch or wait until it is inside the master branch.
 ```bash
 emerge -a app-text/txm
 ```
