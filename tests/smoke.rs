@@ -163,3 +163,10 @@ fn pipe_delimiters_render_like_abs() {
 
     assert_eq!(txm::render("|x|").unwrap(), "│x│\n");
 }
+
+#[test]
+fn pipe_juxtaposed_after_atom() {
+    assert_eq!(txm::render("a |b|").unwrap(), "a│b│\n");
+    assert_eq!(txm::render("|b| a").unwrap(), "│b│a\n");
+    assert_eq!(txm::render("a - |b|").unwrap(), "a - │b│\n");
+}
