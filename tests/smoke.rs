@@ -161,5 +161,5 @@ fn pipe_delimiters_render_like_abs() {
         txm::render(r"\abs{x}").unwrap()
     );
 
-    assert_eq!(txm::render("|x|").unwrap(), "│x│\n");
+    assert_eq!(txm::render("|x|").unwrap(), "|x|\n");
 }

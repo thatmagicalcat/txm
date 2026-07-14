@@ -317,12 +317,6 @@ impl RenderNode {
         // one-liner expressions
         if inner.height <= 1 {
             let mut result = Self::new(inner.width + 2, 1, 0);
-            // Single-line path bypasses multi-line `('|', '|')` match arm.
-            // Without this substitution:
-            //   - U+007C VERTICAL LINE (narrow ASCII pipe glyph) would be used
-            //   - U+2502 BOX DRAWINGS LIGHT VERTICAL gives consistent delimiter weight
-            let left = if left == '|' { '│' } else { left };
-            let right = if right == '|' { '│' } else { right };
             result.buffer[0] = left;
             inner.blit_into(&mut result.buffer, result.width, 1, 0);
             result.buffer[result.width - 1] = right;
