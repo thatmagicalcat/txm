@@ -11,6 +11,9 @@ pub struct Parser<'a> {
     input: &'a str,
     pos: usize,
     registry: &'a SymbolRegistry,
+    /// Tracks closing delimiters, in order of which they should be matched. This helps us track
+    /// sets of brackets, parens, and pipes, to correctly handle these scoped expressions.
+    delim_stack: Vec<Token<'a>>,
 }
 
 impl<'a> Parser<'a> {
@@ -24,7 +27,21 @@ impl<'a> Parser<'a> {
             tokens,
             pos: 0,
             registry,
+            delim_stack: Vec::new(),
         }
+    }
+
+    /// Parses a full `opener ... closer` pair.
+    /// Eats the already-peeked opening, and parses the body with `closer` pushed to the delimiter
+    /// stack so that it is handled as the end of the delimited expression.
+    fn parse_delimited(&mut self, closer: Token<'a>) -> Result<Expr, ParseError> {
+        self.advance();
+        self.delim_stack.push(closer.clone());
+        let result = self.parse_expr();
+        self.delim_stack.pop();
+        let inner = result?;
+        self.expect(closer)?;
+        Ok(inner)
     }
 
     fn peek(&self) -> Option<&Token<'_>> {
@@ -170,22 +187,15 @@ impl<'a> Parser<'a> {
         let mut exprs = Vec::new();
         exprs.push(self.parse_scripted()?);
 
-        while let Some(Token::LBrace)
-        | Some(Token::LParen)
-        | Some(Token::LBracket)
-        | Some(Token::Number(_))
-        | Some(Token::Ident(_))
-        | Some(Token::Command(_))
-        | Some(Token::Escape(_))
-        | Some(Token::Bang)
-        | Some(Token::Ampersand)
-        | Some(Token::Slash)
-        | Some(Token::Comma)
-        | Some(Token::Dot)
-        | Some(Token::Colon)
-        | Some(Token::Semicolon)
-        | Some(Token::Less)
-        | Some(Token::Greater) = self.peek()
+        // `+`/`-` are excluded even though they can start an atom, because they can also be a unary
+        // operator in themselves.
+        //
+        // pipes are handled specifically here because they are the only delimiter that is identical
+        // on both sides(left and right variants are both plain Token::Pipe). other delimiters do not
+        // apply because they have distinct opening and closing forms
+        while self.can_start_atom()
+            && !matches!(self.peek(), Some(Token::Minus) | Some(Token::Plus))
+            && !(self.peek() == Some(&Token::Pipe) && self.delim_stack.last() == Some(&Token::Pipe))
         {
             exprs.push(self.parse_scripted()?);
         }
@@ -244,9 +254,7 @@ impl<'a> Parser<'a> {
                 ));
             };
 
-            self.advance(); // eat {
-            let body = self.parse_expr()?;
-            self.expect(Token::RBrace)?;
+            let body = self.parse_delimited(Token::RBrace)?;
             args.push(body);
 
             Expr::Command {
@@ -283,21 +291,15 @@ impl<'a> Parser<'a> {
                 Ok(Expr::Ident(s))
             }
             Some(Token::LBrace) => {
-                self.advance();
-                let inner = self.parse_expr()?;
-                self.expect(Token::RBrace)?;
+                let inner = self.parse_delimited(Token::RBrace)?;
                 Ok(Expr::Group(Box::new(inner)))
             }
             Some(Token::LParen) => {
-                self.advance();
-                let inner = self.parse_expr()?;
-                self.expect(Token::RParen)?;
+                let inner = self.parse_delimited(Token::RParen)?;
                 Ok(Expr::Parens(Box::new(inner)))
             }
             Some(Token::LBracket) => {
-                self.advance();
-                let inner = self.parse_expr()?;
-                self.expect(Token::RBracket)?;
+                let inner = self.parse_delimited(Token::RBracket)?;
                 Ok(Expr::Brackets(Box::new(inner)))
             }
             Some(Token::Command(name)) => {
@@ -321,9 +323,7 @@ impl<'a> Parser<'a> {
                 Ok(Expr::Escape(s))
             }
             Some(Token::Pipe) => {
-                self.advance();
-                let inner = self.parse_expr()?;
-                self.expect(Token::Pipe)?;
+                let inner = self.parse_delimited(Token::Pipe)?;
                 Ok(Expr::Command {
                     name: "|".into(),
                     opts: vec![],
@@ -491,9 +491,7 @@ impl<'a> Parser<'a> {
         let mut args = Vec::new();
 
         if has_opt && self.peek() == Some(&Token::LBracket) {
-            self.advance();
-            let opt = self.parse_expr()?;
-            self.expect(Token::RBracket)?;
+            let opt = self.parse_delimited(Token::RBracket)?;
             opts.push(opt);
         }
 
@@ -516,9 +514,7 @@ impl<'a> Parser<'a> {
                 // LaTeX, the single following atom (so `\mathbf x` and `\frac12`
                 // work, not only `\mathbf{x}` and `\frac{1}{2}`).
                 if self.peek() == Some(&Token::LBrace) {
-                    self.advance();
-                    let arg = self.parse_expr()?;
-                    self.expect(Token::RBrace)?;
+                    let arg = self.parse_delimited(Token::RBrace)?;
                     args.push(arg);
                 } else {
                     args.push(self.parse_atom()?);
@@ -638,6 +634,7 @@ impl<'a> Parser<'a> {
             tokens,
             pos: 0,
             registry: self.registry,
+            delim_stack: Vec::new(),
         };
 
         sub.parse_expr()
