@@ -44,6 +44,29 @@ impl<'a> Parser<'a> {
         Ok(inner)
     }
 
+    /// Looks ahead from the token just past the current position to decide whether
+    /// `target` (a self-symmetric delimiter, e.g. `Token::Pipe`, that opens and closes
+    /// with the same token) has a match within the current scope.
+    // NOTE: this can be used for any & all symmetric delimiters in the future, such as the longer
+    // variant of pipe (`\|`, `\Vert`)
+    fn scope_contains(&self, target: &Token) -> bool {
+        let mut depth = 0i32;
+        for (tok, _) in &self.tokens[self.pos + 1..] {
+            match tok {
+                Token::LBrace | Token::LParen | Token::LBracket => depth += 1,
+                Token::RBrace | Token::RParen | Token::RBracket => {
+                    if depth == 0 {
+                        return false;
+                    }
+                    depth -= 1;
+                }
+                tok if depth == 0 && tok == target => return true,
+                _ => {}
+            }
+        }
+        false
+    }
+
     fn peek(&self) -> Option<&Token<'_>> {
         self.tokens.get(self.pos).map(|(i, _)| i)
     }
@@ -322,13 +345,18 @@ impl<'a> Parser<'a> {
                 self.advance();
                 Ok(Expr::Escape(s))
             }
-            Some(Token::Pipe) => {
+            Some(Token::Pipe) if self.scope_contains(&Token::Pipe) => {
                 let inner = self.parse_delimited(Token::Pipe)?;
                 Ok(Expr::Command {
                     name: "|".into(),
                     opts: vec![],
                     args: vec![inner],
                 })
+            }
+            // No closing delimiter caught be previous arm, handle as orphan
+            Some(Token::Pipe) => {
+                self.advance();
+                Ok(Expr::Ident("│".into()))
             }
             Some(Token::Minus) => {
                 self.advance();

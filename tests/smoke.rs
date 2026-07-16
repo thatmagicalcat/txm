@@ -170,3 +170,12 @@ fn pipe_juxtaposed_after_atom() {
     assert_eq!(txm::render("|b| a").unwrap(), "│b│a\n");
     assert_eq!(txm::render("a - |b|").unwrap(), "a - │b│\n");
 }
+
+#[test]
+fn pipe_orphan() {
+    assert_eq!(txm::render("a | b").unwrap(), "a│b\n");
+    assert_eq!(txm::render("| a").unwrap(), "│a\n");
+    assert_eq!(txm::render("a |").unwrap(), "a│\n");
+    assert_eq!(txm::render("a | b | c").unwrap(), "a│b│c\n");
+    assert_eq!(txm::render("(a | b)").unwrap(), "(a│b)\n");
+}
