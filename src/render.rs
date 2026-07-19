@@ -34,7 +34,9 @@ pub fn render(
 
         Expr::Neg(inner) => {
             let inner = render(inner, reg, ctx)?;
-            Ok(LayoutNode::negate(inner))
+            let mut node = LayoutNode::negate(inner);
+            node.style = ctx.current_style;
+            Ok(node)
         }
 
         Expr::Command { name, opts, args } => {
@@ -110,13 +112,17 @@ pub fn render(
 
         Expr::Prime(base, n) => {
             let base = render(base, reg, ctx)?;
-            Ok(LayoutNode::prime(base, *n))
+            let mut node = LayoutNode::prime(base, *n);
+            node.style = ctx.current_style;
+            Ok(node)
         }
 
         Expr::BinOp(lhs, op, rhs) => {
             let lhs = render(lhs, reg, ctx)?;
             let rhs = render(rhs, reg, ctx)?;
-            Ok(LayoutNode::infix(lhs, *op, rhs))
+            let mut node = LayoutNode::infix(lhs, *op, rhs);
+            node.style = ctx.current_style;
+            Ok(node)
         }
 
         Expr::Escape(s) => {

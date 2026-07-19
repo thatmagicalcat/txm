@@ -432,3 +432,63 @@ fn render_matrix(
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::render_node;
+    use crate::backend::RenderTarget;
+    use crate::style::{Color, Style};
+
+    struct StyleBuf {
+        cells: Vec<(char, Style)>,
+        width: usize,
+    }
+
+    impl StyleBuf {
+        fn new(width: usize, height: usize) -> Self {
+            Self {
+                cells: vec![(' ', Style::new()); width * height],
+                width,
+            }
+        }
+    }
+
+    impl RenderTarget for StyleBuf {
+        fn set(&mut self, x: usize, y: usize, ch: char, style: Style) {
+            let index = y * self.width + x;
+            self.cells[index] = (ch, style);
+        }
+
+        fn fill_row(&mut self, y: usize, x_start: usize, x_end: usize, ch: char, style: Style) {
+            for x in x_start..x_end {
+                self.set(x, y, ch, style);
+            }
+        }
+    }
+
+    #[test]
+    fn current_color_reaches_generated_renderer_cells() {
+        for input in [
+            r"\color{red}{x+y}",
+            r"\color{red}{-x}",
+            r"\color{red}{x'}",
+            r"\color{red}{\int_a^b{f'\left(x\right) dx}}",
+        ] {
+            let tree = crate::layout(input).unwrap();
+            let mut buf = StyleBuf::new(tree.width, tree.height);
+            render_node(&tree, &mut buf, 0, 0);
+
+            let uncolored: String = buf
+                .cells
+                .iter()
+                .filter(|(ch, style)| *ch != ' ' && style.fg_color() != Color::Red)
+                .map(|(ch, _)| *ch)
+                .collect();
+
+            assert!(
+                uncolored.is_empty(),
+                "expected all cells in {input:?} to be red, uncolored: {uncolored:?}"
+            );
+        }
+    }
+}
