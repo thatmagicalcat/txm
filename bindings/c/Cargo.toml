@@ -1,0 +1,15 @@
+[package]
+name = "txm-c"
+version = "0.1.0"
+edition = "2024"
+description = "C/C++ bindings for TXM, a terminal math rendering engine."
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/thatmagicalcat/txm"
+
+[lib]
+crate-type = ["cdylib", "staticlib"]
+
+[workspace]
+
+[dependencies]
+txm = { package = "txm", path = "../.." }
