@@ -46,6 +46,7 @@ $ cargo install --git https://github.com/thatmagicalcat/txm
 ```
 
 ### Bindings
+- C/C++ bindings live in [`bindings/c/`](./bindings/c/).
 - Python bindings live in [`bindings/py/`](./bindings/py/).
 
 # Projects using TXM:
