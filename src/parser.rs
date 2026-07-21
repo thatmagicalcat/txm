@@ -429,7 +429,12 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_left_delimited(&mut self) -> Result<Expr, ParseError> {
-        let left = self.read_delimiter("left")?;
+        // Peek left and convert it back to it's character representation
+        let left = self
+            .peek()
+            .and_then(|tok| tok.as_char())
+            .ok_or(ParseError::ExpectedDelimiter { side: "left" })?;
+
         let inner_start = self.pos;
         let mut depth = 0usize;
         let mut match_idx = None;
@@ -459,21 +464,17 @@ impl<'a> Parser<'a> {
             return Err(ParseError::Internal("mismatched delimiter scan".into()));
         }
 
-        let Some((right_token, _)) = self.tokens.get(match_idx + 1) else {
-            return Err(ParseError::ExpectedDelimiter { side: "right" });
-        };
-        let right = match right_token {
-            Token::LParen | Token::Escape("(") => '(',
-            Token::LBracket | Token::Escape("[") => '[',
-            Token::LBrace | Token::Escape("{") => '{',
-            Token::RParen | Token::Escape(")") => ')',
-            Token::RBracket | Token::Escape("]") => ']',
-            Token::RBrace | Token::Escape("}") => '}',
-            Token::Pipe | Token::Escape("|") => '|',
-            _ => {
-                return Err(ParseError::ExpectedDelimiter { side: "right" });
-            }
-        };
+        // Convert the token after the matched index back into it's character representation
+        let right = self
+            .tokens
+            .get(match_idx + 1)
+            .and_then(|(t, _)| t.as_char())
+            .ok_or(ParseError::ExpectedDelimiter { side: "right" })?;
+
+        // Expect left and right delimiters to match
+        // TODO: this should probably get it's own strongly-typed error variant. it's not really
+        // unreachable code, and this branch could reasonably be called in production, resulting in
+        // a hard panic.
         let expected_right = match left {
             '(' => ')',
             '[' => ']',
@@ -492,24 +493,6 @@ impl<'a> Parser<'a> {
             right,
             inner: Box::new(inner),
         })
-    }
-
-    fn read_delimiter(&mut self, side: &'static str) -> Result<char, ParseError> {
-        let delim = match self.peek() {
-            Some(Token::LParen) | Some(Token::Escape("(")) => '(',
-            Some(Token::LBracket) | Some(Token::Escape("[")) => '[',
-            Some(Token::LBrace) | Some(Token::Escape("{")) => '{',
-            Some(Token::Pipe) | Some(Token::Escape("|")) => '|',
-            Some(Token::RParen) | Some(Token::Escape(")")) => ')',
-            Some(Token::RBracket) | Some(Token::Escape("]")) => ']',
-            Some(Token::RBrace) | Some(Token::Escape("}")) => '}',
-            _ => {
-                return Err(ParseError::ExpectedDelimiter { side });
-            }
-        };
-
-        self.advance();
-        Ok(delim)
     }
 
     fn parse_delimited_arg(&mut self, close: Token) -> Result<Expr, ParseError> {
