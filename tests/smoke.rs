@@ -83,7 +83,7 @@ fn braces_group_invisibly() {
 
 #[test]
 fn render_returns_error_for_invalid_lexer_input() {
-    assert!(txm::render("@").is_err());
+    assert!(txm::render("\\").is_err());
 }
 
 #[test]

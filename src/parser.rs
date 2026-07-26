@@ -120,6 +120,19 @@ impl<'a> Parser<'a> {
                     self.advance();
                 }
                 Some(Token::RBrace) => break,
+                Some(tok) if tok.text_char().is_some() => {
+                    let span = self.current_span().ok_or(ParseError::UnexpectedEof)?;
+
+                    if let Some(prev_end) = last_end
+                        && prev_end != span.start
+                    {
+                        name.push(' ');
+                    }
+
+                    name.push(tok.text_char().unwrap());
+                    last_end = Some(span.end);
+                    self.advance();
+                }
                 _ => {
                     return Err(ParseError::ExpectedString.at(
                         self.current_span()
@@ -193,6 +206,14 @@ impl<'a> Parser<'a> {
                 | Some(Token::Semicolon)
                 | Some(Token::Less)
                 | Some(Token::Greater)
+                | Some(Token::Question)
+                | Some(Token::At)
+                | Some(Token::Hash)
+                | Some(Token::Dollar)
+                | Some(Token::Percent)
+                | Some(Token::Tilde)
+                | Some(Token::Quote)
+                | Some(Token::Backtick)
         )
     }
 
@@ -221,7 +242,15 @@ impl<'a> Parser<'a> {
         | Some(Token::Colon)
         | Some(Token::Semicolon)
         | Some(Token::Less)
-        | Some(Token::Greater) = self.peek()
+        | Some(Token::Greater)
+        | Some(Token::Question)
+        | Some(Token::At)
+        | Some(Token::Hash)
+        | Some(Token::Dollar)
+        | Some(Token::Percent)
+        | Some(Token::Tilde)
+        | Some(Token::Quote)
+        | Some(Token::Backtick) = self.peek()
         {
             exprs.push(self.parse_scripted()?);
         }
@@ -373,6 +402,14 @@ impl<'a> Parser<'a> {
             Token::Semicolon => Ok(Expr::Ident(";".into())),
             Token::Less => Ok(Expr::Ident("<".into())),
             Token::Greater => Ok(Expr::Ident(">".into())),
+            Token::Question => Ok(Expr::Ident("?".into())),
+            Token::At => Ok(Expr::Ident("@".into())),
+            Token::Hash => Ok(Expr::Ident("#".into())),
+            Token::Dollar => Ok(Expr::Ident("$".into())),
+            Token::Percent => Ok(Expr::Ident("%".into())),
+            Token::Tilde => Ok(Expr::Ident("~".into())),
+            Token::Quote => Ok(Expr::Ident("\"".into())),
+            Token::Backtick => Ok(Expr::Ident("`".into())),
             other => Err(ParseError::UnexpectedToken {
                 position: self.pos - 1,
                 token: format!("{other:?}"),
