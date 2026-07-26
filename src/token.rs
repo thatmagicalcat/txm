@@ -73,6 +73,21 @@ pub enum Token<'a> {
     Whitespace,
 }
 
+impl<'a> Token<'a> {
+    pub fn as_char(&self) -> Option<char> {
+        match self {
+            Token::LParen | Token::Escape("(") => Some('('),
+            Token::RParen | Token::Escape(")") => Some(')'),
+            Token::LBracket | Token::Escape("[") => Some('['),
+            Token::RBracket | Token::Escape("]") => Some(']'),
+            Token::LBrace | Token::Escape("{") => Some('{'),
+            Token::RBrace | Token::Escape("}") => Some('}'),
+            Token::Pipe | Token::Escape("|") => Some('|'),
+            _ => None,
+        }
+    }
+}
+
 pub fn tokenize(input: &str) -> Result<Vec<SpannedToken<'_>>, ParseError> {
     Token::lexer(input)
         .spanned()
