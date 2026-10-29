@@ -50,9 +50,16 @@ jobs:
           nix build .#x86_64-windows
           cp result/bin/txm.exe txm-x86_64-windows
 
-      # ── Upload all binaries as a single artifact ────────────────────
+      # ── Make vendor/crate tarball for downstream sourcebuilds ────────
+      
+      - name: Make vendor tarball
+        run : |
+          cargo vendor
+          XZ_OPT='-T0 -9' tar -acf txm-crates-vendor.tar.xz vendor
 
-      - name: Upload binaries
+      # ── Upload all binaries and other files as a single artifact ─────
+
+      - name: Upload binaries and other files
         uses: actions/upload-artifact@v7
         with:
           name: txm-binaries
@@ -62,6 +69,7 @@ jobs:
             txm-x86_64-macos
             txm-aarch64-macos
             txm-x86_64-windows
+            txm-crates-vendor.tar.xz
           if-no-files-found: error
 
   create-release:
